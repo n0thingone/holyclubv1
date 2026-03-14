@@ -219,12 +219,12 @@ export default function GuestRegistrationClient({
             </div>
           </div>
 
-          {typeof navigator !== "undefined" && "share" in navigator && (
-            <button onClick={shareQr} className="holy-btn-secondary">
-              <Share2 className="w-4 h-4 inline-block mr-2" />
-              COMPARTIR QR
-            </button>
-          )}
+        {typeof navigator !== "undefined" && "share" in navigator && (
+  <button onClick={shareQr} className="holy-btn-secondary">
+    <Share2 className="w-4 h-4 inline-block mr-2" />
+    COMPARTIR QR
+  </button>
+)}
 
           <p className="text-text-muted text-xs">
             Guardá una captura de pantalla de tu QR
