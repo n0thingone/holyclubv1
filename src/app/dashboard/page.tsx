@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useActiveEvent } from "@/hooks/useActiveEvent";
 import { useRanking } from "@/hooks/useRanking";
@@ -10,12 +10,10 @@ import {
   LogIn,
   Crown,
   Clock,
-  Plus,
   X,
   QrCode,
   Star,
   History,
-  Sparkles,
   CheckCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -37,7 +35,7 @@ export default function AdminDashboard() {
   const [closingEvent, setClosingEvent] = useState(false);
   const [closedSuccess, setClosedSuccess] = useState(false);
   const { profile } = useAuth();
-  const supabase = getSupabaseClient();
+  const supabase = createClient();
   const router = useRouter();
 
   useEffect(() => {
@@ -46,6 +44,7 @@ export default function AdminDashboard() {
 
   async function fetchStats() {
     if (!event) return;
+
     const [reg, checkins] = await Promise.all([
       supabase
         .from("guest_registrations")
@@ -71,35 +70,48 @@ export default function AdminDashboard() {
 
   async function closeRegistrations() {
     if (!event) return;
+
     await supabase
       .from("events")
       .update({ registration_until: new Date().toISOString() })
       .eq("id", event.id);
+
     refetch();
   }
 
   async function closeEventWithSnapshot() {
     if (!event) return;
+
     setClosingEvent(true);
     const closedAt = new Date().toISOString();
 
     try {
-      // 1. Obtener métricas finales
       const [regRes, checkinRes, rrppRes, rankingRes] = await Promise.all([
-        supabase.from("guest_registrations").select("id", { count: "exact" }).eq("event_id", event.id),
-        supabase.from("checkins").select("id, result").eq("event_id", event.id),
+        supabase
+          .from("guest_registrations")
+          .select("id", { count: "exact" })
+          .eq("event_id", event.id),
+        supabase
+          .from("checkins")
+          .select("id, result")
+          .eq("event_id", event.id),
         supabase.from("rrpp_profiles").select("id").eq("active", true),
-        supabase.from("rrpp_ranking").select("*").eq("event_id", event.id).order("position", { ascending: true }),
+        supabase
+          .from("rrpp_ranking")
+          .select("*")
+          .eq("event_id", event.id)
+          .order("position", { ascending: true }),
       ]);
 
       const totalGuests = regRes.count || 0;
-      const totalCheckins = checkinRes.data?.filter(c => c.result === "valid_entry").length || 0;
-      const totalGold = checkinRes.data?.filter(c => c.result === "gold_entry").length || 0;
+      const totalCheckins =
+        checkinRes.data?.filter((c) => c.result === "valid_entry").length || 0;
+      const totalGold =
+        checkinRes.data?.filter((c) => c.result === "gold_entry").length || 0;
       const totalRrpp = rrppRes.data?.length || 0;
-      const ranking = rankingRes.data || [];
-      const top3 = ranking.slice(0, 3);
+      const rankingData = rankingRes.data || [];
+      const top3 = rankingData.slice(0, 3);
 
-      // 2. Guardar snapshot
       await supabase.from("event_snapshots").upsert({
         event_id: event.id,
         event_name: event.name,
@@ -109,18 +121,30 @@ export default function AdminDashboard() {
         total_checkins: totalCheckins,
         total_gold: totalGold,
         total_rrpp_active: totalRrpp,
-        ranking_json: ranking,
+        ranking_json: rankingData,
         top3_json: top3,
-        summary_json: { stats: { registered: totalGuests, checkins: totalCheckins, gold: totalGold } },
+        summary_json: {
+          stats: {
+            registered: totalGuests,
+            checkins: totalCheckins,
+            gold: totalGold,
+          },
+        },
       });
 
-      // 3. Cerrar evento
-      await supabase.from("events").update({ status: "closed", closed_at: closedAt }).eq("id", event.id);
+      await supabase
+        .from("events")
+        .update({ status: "closed", closed_at: closedAt })
+        .eq("id", event.id);
 
       setClosingEvent(false);
       setClosedSuccess(true);
       setShowCloseConfirm(false);
-      setTimeout(() => { setClosedSuccess(false); refetch(); }, 2000);
+
+      setTimeout(() => {
+        setClosedSuccess(false);
+        refetch();
+      }, 2000);
     } catch (err) {
       console.error("Error cerrando evento:", err);
       setClosingEvent(false);
@@ -137,7 +161,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="px-4 py-6 space-y-6 animate-fade-in max-w-lg mx-auto">
-      {/* Header */}
       <div>
         <h1 className="font-display text-2xl font-black tracking-widest text-white">
           DASHBOARD
@@ -145,7 +168,6 @@ export default function AdminDashboard() {
         <p className="text-text-muted text-sm mt-1">Panel de administración</p>
       </div>
 
-      {/* Event Card */}
       {event ? (
         <div className="holy-card border-accent-purple/30 bg-gradient-card">
           <div className="flex items-start justify-between mb-4">
@@ -159,7 +181,9 @@ export default function AdminDashboard() {
               <h2 className="font-display text-lg font-bold text-white">
                 {event.name}
               </h2>
-              <p className="text-text-muted text-sm">{formatDate(event.event_date)}</p>
+              <p className="text-text-muted text-sm">
+                {formatDate(event.event_date)}
+              </p>
             </div>
           </div>
 
@@ -175,6 +199,7 @@ export default function AdminDashboard() {
                 {formatTime(event.registration_until)}
               </p>
             </div>
+
             <div className="bg-background/50 rounded-xl p-3">
               <div className="flex items-center gap-1.5 mb-1">
                 <QrCode className="w-3.5 h-3.5 text-accent-pink" />
@@ -203,7 +228,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Stats */}
       {event && (
         <div className="grid grid-cols-3 gap-3">
           <div className="stat-card">
@@ -213,6 +237,7 @@ export default function AdminDashboard() {
             </div>
             <span className="stat-value">{stats.registered}</span>
           </div>
+
           <div className="stat-card">
             <div className="flex items-center gap-1.5 mb-1">
               <LogIn className="w-4 h-4 text-success" />
@@ -220,6 +245,7 @@ export default function AdminDashboard() {
             </div>
             <span className="stat-value text-success">{stats.checkedIn}</span>
           </div>
+
           <div className="stat-card">
             <div className="flex items-center gap-1.5 mb-1">
               <Crown className="w-4 h-4 text-gold" />
@@ -230,19 +256,21 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Ranking preview */}
       {event && ranking.length > 0 && (
         <div className="holy-card">
           <h3 className="font-display text-xs font-bold tracking-widest text-text-muted uppercase mb-3 flex items-center gap-2">
             <Star className="w-3.5 h-3.5 text-accent-purple" />
             Ranking Noche
           </h3>
+
           <div className="space-y-2">
             {ranking.slice(0, 5).map((r, i) => (
               <div
                 key={r.rrpp_id}
                 className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${
-                  i === 0 ? "bg-accent-purple/10 border border-accent-purple/20" : "bg-background/50"
+                  i === 0
+                    ? "bg-accent-purple/10 border border-accent-purple/20"
+                    : "bg-background/50"
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -253,6 +281,7 @@ export default function AdminDashboard() {
                     {r.display_name}
                   </span>
                 </div>
+
                 <span className="font-display text-sm font-bold text-white">
                   {r.checkin_count}
                 </span>
@@ -262,7 +291,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Actions */}
       {event && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -272,6 +300,7 @@ export default function AdminDashboard() {
             >
               ✦ QR GOLD
             </button>
+
             <button
               onClick={() => setShowPromoQr(true)}
               className="holy-btn-secondary"
@@ -279,12 +308,14 @@ export default function AdminDashboard() {
               📢 QR PROMO
             </button>
           </div>
+
           <button
             onClick={closeRegistrations}
             className="holy-btn-secondary"
           >
             🔒 CERRAR REGISTROS
           </button>
+
           <button
             onClick={() => router.push("/dashboard/history")}
             className="holy-btn-secondary flex items-center justify-center gap-2"
@@ -292,7 +323,11 @@ export default function AdminDashboard() {
             <History className="w-4 h-4" />
             HISTORIAL DE NOCHES
           </button>
-          <button onClick={() => setShowCloseConfirm(true)} className="holy-btn-danger">
+
+          <button
+            onClick={() => setShowCloseConfirm(true)}
+            className="holy-btn-danger"
+          >
             ✕ CERRAR EVENTO
           </button>
         </div>
@@ -307,7 +342,6 @@ export default function AdminDashboard() {
         </button>
       )}
 
-      {/* Create Event Modal */}
       {showCreateEvent && (
         <CreateEventModal
           profile={profile}
@@ -319,7 +353,6 @@ export default function AdminDashboard() {
         />
       )}
 
-      {/* Gold QR Modal */}
       {showGoldQr && event && (
         <CreateGoldQrModal
           eventId={event.id}
@@ -328,24 +361,39 @@ export default function AdminDashboard() {
         />
       )}
 
-      {/* Close Event Confirm Modal */}
       {showCloseConfirm && (
         <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-end">
           <div className="w-full max-w-lg mx-auto bg-card border border-border rounded-t-3xl p-6 animate-slide-up">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-lg font-bold tracking-widest text-danger">✕ CERRAR EVENTO</h2>
-              <button onClick={() => setShowCloseConfirm(false)} className="p-2 rounded-lg bg-background text-text-muted">
+              <h2 className="font-display text-lg font-bold tracking-widest text-danger">
+                ✕ CERRAR EVENTO
+              </h2>
+              <button
+                onClick={() => setShowCloseConfirm(false)}
+                className="p-2 rounded-lg bg-background text-text-muted"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
             <p className="text-text-muted text-sm mb-6">
-              ¿Seguro que querés cerrar este evento? Se guardará el resumen final de la noche y dejará de figurar como evento activo.
+              ¿Seguro que querés cerrar este evento? Se guardará el resumen final
+              de la noche y dejará de figurar como evento activo.
             </p>
+
             <div className="flex gap-3">
-              <button onClick={() => setShowCloseConfirm(false)} className="holy-btn-secondary flex-1">
+              <button
+                onClick={() => setShowCloseConfirm(false)}
+                className="holy-btn-secondary flex-1"
+              >
                 Cancelar
               </button>
-              <button onClick={closeEventWithSnapshot} disabled={closingEvent} className="holy-btn-danger flex-1">
+
+              <button
+                onClick={closeEventWithSnapshot}
+                disabled={closingEvent}
+                className="holy-btn-danger flex-1"
+              >
                 {closingEvent ? "Cerrando..." : "Confirmar cierre"}
               </button>
             </div>
@@ -353,15 +401,15 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Success Toast */}
       {closedSuccess && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-success/20 border border-success/40 rounded-2xl px-6 py-3 flex items-center gap-2">
           <CheckCircle className="w-5 h-5 text-success" />
-          <span className="text-success text-sm font-semibold">Evento cerrado correctamente</span>
+          <span className="text-success text-sm font-semibold">
+            Evento cerrado correctamente
+          </span>
         </div>
       )}
 
-      {/* Promo QR Modal */}
       {showPromoQr && (
         <CreatePromoQrModal
           profileId={profile?.id || ""}
@@ -372,7 +420,6 @@ export default function AdminDashboard() {
   );
 }
 
-// ─── Create Event Modal ────────────────────────────────────────────────────────
 function CreateEventModal({
   profile,
   onClose,
@@ -382,7 +429,7 @@ function CreateEventModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const supabase = getSupabaseClient();
+  const supabase = createClient();
   const [form, setForm] = useState({
     name: "",
     event_date: new Date().toISOString().split("T")[0],
@@ -394,6 +441,7 @@ function CreateEventModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!profile) return;
+
     setLoading(true);
 
     const dateBase = form.event_date;
@@ -404,7 +452,6 @@ function CreateEventModal({
       `${dateBase}T${form.qr_entry_until_time}:00-03:00`
     );
 
-    // If times are AM (early morning), move to next day
     if (form.registration_until_time < "12:00") {
       regUntil.setDate(regUntil.getDate() + 1);
     }
@@ -421,7 +468,6 @@ function CreateEventModal({
       created_by: profile.id,
     });
 
-    // Create benefits for all active RRPP
     const { data: rrpps } = await supabase
       .from("rrpp_profiles")
       .select("id")
@@ -443,6 +489,7 @@ function CreateEventModal({
           status: "issued",
           issued_at: new Date().toISOString(),
         }));
+
         await supabase.from("rrpp_event_benefits").insert(benefits);
 
         const rewards = rrpps.map((r) => ({
@@ -453,10 +500,12 @@ function CreateEventModal({
           trigger_count: 35,
           status: "locked",
         }));
+
         await supabase.from("rrpp_event_rewards").insert(rewards);
       }
     }
 
+    setLoading(false);
     onCreated();
   }
 
@@ -474,6 +523,7 @@ function CreateEventModal({
             <X className="w-5 h-5" />
           </button>
         </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="holy-label">Nombre del Evento</label>
@@ -485,6 +535,7 @@ function CreateEventModal({
               required
             />
           </div>
+
           <div>
             <label className="holy-label">Fecha</label>
             <input
@@ -495,6 +546,7 @@ function CreateEventModal({
               required
             />
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="holy-label">Registro hasta</label>
@@ -503,11 +555,15 @@ function CreateEventModal({
                 className="holy-input"
                 value={form.registration_until_time}
                 onChange={(e) =>
-                  setForm({ ...form, registration_until_time: e.target.value })
+                  setForm({
+                    ...form,
+                    registration_until_time: e.target.value,
+                  })
                 }
                 required
               />
             </div>
+
             <div>
               <label className="holy-label">QR hasta</label>
               <input
@@ -515,12 +571,16 @@ function CreateEventModal({
                 className="holy-input"
                 value={form.qr_entry_until_time}
                 onChange={(e) =>
-                  setForm({ ...form, qr_entry_until_time: e.target.value })
+                  setForm({
+                    ...form,
+                    qr_entry_until_time: e.target.value,
+                  })
                 }
                 required
               />
             </div>
           </div>
+
           <button type="submit" disabled={loading} className="holy-btn-primary">
             {loading ? "Creando..." : "CREAR EVENTO"}
           </button>
@@ -530,7 +590,6 @@ function CreateEventModal({
   );
 }
 
-// ─── Create Gold QR Modal ──────────────────────────────────────────────────────
 function CreateGoldQrModal({
   eventId,
   profileId,
@@ -540,7 +599,7 @@ function CreateGoldQrModal({
   profileId: string;
   onClose: () => void;
 }) {
-  const supabase = getSupabaseClient();
+  const supabase = createClient();
   const [title, setTitle] = useState("GOLD ENTRY");
   const [maxUses, setMaxUses] = useState(10);
   const [loading, setLoading] = useState(false);
@@ -548,7 +607,9 @@ function CreateGoldQrModal({
 
   async function handleCreate() {
     setLoading(true);
+
     const token = generateQrToken();
+
     await supabase.from("gold_qrs").insert({
       event_id: eventId,
       title,
@@ -557,6 +618,7 @@ function CreateGoldQrModal({
       created_by: profileId,
       valid_until: null,
     });
+
     setCreated(token);
     setLoading(false);
   }
@@ -575,6 +637,7 @@ function CreateGoldQrModal({
             <X className="w-5 h-5" />
           </button>
         </div>
+
         {!created ? (
           <div className="space-y-4">
             <div>
@@ -585,6 +648,7 @@ function CreateGoldQrModal({
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>
+
             <div>
               <label className="holy-label">Usos máximos</label>
               <input
@@ -595,6 +659,7 @@ function CreateGoldQrModal({
                 min={1}
               />
             </div>
+
             <button
               onClick={handleCreate}
               disabled={loading}
@@ -613,7 +678,9 @@ function CreateGoldQrModal({
                 {created}
               </p>
             </div>
+
             <p className="text-text-muted text-sm">QR generado exitosamente</p>
+
             <button onClick={onClose} className="holy-btn-secondary">
               CERRAR
             </button>
@@ -624,7 +691,6 @@ function CreateGoldQrModal({
   );
 }
 
-// ─── Create Promo QR Modal ─────────────────────────────────────────────────────
 function CreatePromoQrModal({
   profileId,
   onClose,
@@ -632,7 +698,7 @@ function CreatePromoQrModal({
   profileId: string;
   onClose: () => void;
 }) {
-  const supabase = getSupabaseClient();
+  const supabase = createClient();
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -643,7 +709,9 @@ function CreatePromoQrModal({
 
   async function handleCreate() {
     setLoading(true);
+
     const token = generateQrToken();
+
     await supabase.from("promo_qrs").insert({
       title: form.title,
       description: form.description,
@@ -651,6 +719,7 @@ function CreatePromoQrModal({
       max_uses: form.maxUses,
       created_by: profileId,
     });
+
     setCreated(token);
     setLoading(false);
   }
@@ -669,6 +738,7 @@ function CreatePromoQrModal({
             <X className="w-5 h-5" />
           </button>
         </div>
+
         {!created ? (
           <div className="space-y-4">
             <div>
@@ -681,6 +751,7 @@ function CreatePromoQrModal({
                 required
               />
             </div>
+
             <div>
               <label className="holy-label">Descripción</label>
               <input
@@ -692,6 +763,7 @@ function CreatePromoQrModal({
                 }
               />
             </div>
+
             <div>
               <label className="holy-label">Usos máximos</label>
               <input
@@ -704,6 +776,7 @@ function CreatePromoQrModal({
                 min={1}
               />
             </div>
+
             <button
               onClick={handleCreate}
               disabled={loading}
@@ -722,7 +795,9 @@ function CreatePromoQrModal({
                 {created}
               </p>
             </div>
+
             <p className="text-text-muted text-sm">QR promo generado</p>
+
             <button onClick={onClose} className="holy-btn-secondary">
               CERRAR
             </button>
