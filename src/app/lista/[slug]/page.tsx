@@ -1,36 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
-import GuestRegistrationClient from "./GuestRegistrationClient";
+import { redirect } from "next/navigation";
 
-export default async function ListaPage({
-  params,
-}: {
-  params: { slug: string };
-}) {
-  // Server Component — usar cliente server, nunca el browser singleton
+export default async function RootPage() {
   const supabase = createClient();
 
-  const { data: rrpp } = await supabase
-    .from("rrpp_profiles")
-    .select("*, profiles(full_name)")
-    .eq("slug", params.slug)
-    .eq("active", true)
-    .single();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: event } = await supabase
-    .from("events")
-    .select("*")
-    .eq("status", "active")
-    .single();
+  // si no está logueado → login
+  if (!user) {
+    redirect("/login");
+  }
 
-  const isRegistrationOpen = event?.registration_until
-    ? new Date() <= new Date(event.registration_until)
-    : !!event;
-
-  return (
-    <GuestRegistrationClient
-      rrpp={rrpp}
-      event={event}
-      isRegistrationOpen={isRegistrationOpen}
-    />
-  );
+  // si está logueado → panel
+  redirect("/panel");
 }
