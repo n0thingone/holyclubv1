@@ -1,9 +1,0 @@
-{
-  "/login/page": "app/login/page.js",
-  "/lista/[slug]/page": "app/lista/[slug]/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/dashboard/history/page": "app/dashboard/history/page.js",
-  "/dashboard/rrpp-panel/page": "app/dashboard/rrpp-panel/page.js",
-  "/dashboard/gold/page": "app/dashboard/gold/page.js",
-  "/dashboard/bar/page": "app/dashboard/bar/page.js"
-}
