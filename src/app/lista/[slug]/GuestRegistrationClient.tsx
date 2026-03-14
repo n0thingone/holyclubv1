@@ -84,9 +84,7 @@ export default function GuestRegistrationClient({
           <h1 className="font-display text-2xl font-black tracking-widest text-white">
             REGISTROS CERRADOS
           </h1>
-          <p className="text-text-muted">
-            El horario de registro ha finalizado
-          </p>
+          <p className="text-text-muted">El horario de registro ha finalizado</p>
           <p className="text-text-muted text-sm">
             Presentate en la puerta y aboná la entrada
           </p>
@@ -137,16 +135,14 @@ export default function GuestRegistrationClient({
   }
 
   async function shareQr() {
-    if (
-      !result ||
-      typeof navigator === "undefined" ||
-      !("share" in navigator)
-    ) {
+    if (!result || typeof navigator === "undefined" || !("share" in navigator)) {
       return;
     }
 
     try {
-      await navigator.share({
+      await (navigator as Navigator & {
+        share: (data: ShareData) => Promise<void>;
+      }).share({
         title: "Holy Club — Mi QR de entrada",
         text: `QR de ingreso para ${result.first_name} ${result.last_name}`,
         url: window.location.href,
@@ -219,12 +215,12 @@ export default function GuestRegistrationClient({
             </div>
           </div>
 
-        {typeof navigator !== "undefined" && "share" in navigator && (
-  <button onClick={shareQr} className="holy-btn-secondary">
-    <Share2 className="w-4 h-4 inline-block mr-2" />
-    COMPARTIR QR
-  </button>
-)}
+          {typeof navigator !== "undefined" && "share" in navigator && (
+            <button onClick={shareQr} className="holy-btn-secondary">
+              <Share2 className="w-4 h-4 inline-block mr-2" />
+              COMPARTIR QR
+            </button>
+          )}
 
           <p className="text-text-muted text-xs">
             Guardá una captura de pantalla de tu QR
