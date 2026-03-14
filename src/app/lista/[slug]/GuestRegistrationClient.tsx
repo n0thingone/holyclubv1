@@ -4,7 +4,7 @@ import { useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { generateQrToken, formatTime, formatDate } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
-import { Zap, Clock, UserCheck, AlertCircle, Share2, Download } from "lucide-react";
+import { Zap, Clock, UserCheck, AlertCircle, Share2 } from "lucide-react";
 import type { Event, RrppProfile } from "@/types";
 
 interface Props {
@@ -64,9 +64,7 @@ export default function GuestRegistrationClient({
           <h1 className="font-display text-2xl font-black tracking-widest text-white">
             HOLY CLUB
           </h1>
-          <p className="text-text-muted">
-            No hay evento activo esta noche
-          </p>
+          <p className="text-text-muted">No hay evento activo esta noche</p>
           <p className="text-text-muted text-sm">
             Te invitó:{" "}
             <span className="text-accent-purple font-semibold">
@@ -100,10 +98,10 @@ export default function GuestRegistrationClient({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!rrpp || !event) return;
+
     setLoading(true);
     setError("");
 
-    // Validate DNI
     if (!/^\d{3}$/.test(form.dni_last3)) {
       setError("Los últimos 3 dígitos del DNI deben ser números");
       setLoading(false);
@@ -139,22 +137,29 @@ export default function GuestRegistrationClient({
   }
 
   async function shareQr() {
-    if (!result || !navigator.share) return;
+    if (
+      !result ||
+      typeof navigator === "undefined" ||
+      !("share" in navigator)
+    ) {
+      return;
+    }
+
     try {
       await navigator.share({
         title: "Holy Club — Mi QR de entrada",
         text: `QR de ingreso para ${result.first_name} ${result.last_name}`,
         url: window.location.href,
       });
-    } catch {}
+    } catch (err) {
+      console.error("Error sharing QR:", err);
+    }
   }
 
-  // QR Display screen
   if (result) {
     return (
       <div className="min-h-dvh bg-background mesh-bg flex flex-col items-center justify-center px-4 py-8 animate-fade-in">
         <div className="w-full max-w-sm space-y-6 text-center">
-          {/* Logo */}
           <div>
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-purple shadow-purple mb-3">
               <Zap className="w-6 h-6 text-black" fill="black" />
@@ -164,7 +169,6 @@ export default function GuestRegistrationClient({
             </h1>
           </div>
 
-          {/* QR Card */}
           <div className="holy-card animate-scale-in">
             <div className="flex items-center gap-2 justify-center mb-4">
               <UserCheck className="w-5 h-5 text-success" />
@@ -183,7 +187,6 @@ export default function GuestRegistrationClient({
               </span>
             </p>
 
-            {/* QR Code */}
             <div className="bg-white rounded-2xl p-5 inline-block mx-auto mb-4 shadow-purple">
               <QRCodeSVG
                 value={result.qr_token}
@@ -200,7 +203,6 @@ export default function GuestRegistrationClient({
               {result.qr_token}
             </p>
 
-            {/* Event info */}
             <div className="mt-4 bg-background/50 rounded-xl p-3">
               <p className="font-display text-sm font-bold text-white">
                 {event.name}
@@ -217,13 +219,12 @@ export default function GuestRegistrationClient({
             </div>
           </div>
 
-     {/* Share button */}
-{typeof navigator !== "undefined" && navigator.share && (
-  <button onClick={shareQr} className="holy-btn-secondary">
-    <Share2 className="w-4 h-4 inline-block mr-2" />
-    COMPARTIR QR
-  </button>
-)}
+          {typeof navigator !== "undefined" && "share" in navigator && (
+            <button onClick={shareQr} className="holy-btn-secondary">
+              <Share2 className="w-4 h-4 inline-block mr-2" />
+              COMPARTIR QR
+            </button>
+          )}
 
           <p className="text-text-muted text-xs">
             Guardá una captura de pantalla de tu QR
@@ -233,11 +234,9 @@ export default function GuestRegistrationClient({
     );
   }
 
-  // Registration form
   return (
     <div className="min-h-dvh bg-background mesh-bg flex flex-col items-center justify-center px-4 py-8">
       <div className="w-full max-w-sm space-y-6 animate-slide-up">
-        {/* Header */}
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-purple shadow-purple mb-4">
             <Zap className="w-7 h-7 text-black" fill="black" />
@@ -253,7 +252,6 @@ export default function GuestRegistrationClient({
           </p>
         </div>
 
-        {/* Event info */}
         <div className="holy-card bg-gradient-card">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
@@ -273,7 +271,6 @@ export default function GuestRegistrationClient({
           </div>
         </div>
 
-        {/* Form */}
         <div className="holy-card">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -289,6 +286,7 @@ export default function GuestRegistrationClient({
                 autoComplete="given-name"
               />
             </div>
+
             <div>
               <label className="holy-label">Apellido</label>
               <input
@@ -302,6 +300,7 @@ export default function GuestRegistrationClient({
                 autoComplete="family-name"
               />
             </div>
+
             <div>
               <label className="holy-label">Últimos 3 dígitos del DNI</label>
               <input
