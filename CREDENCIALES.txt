@@ -1,0 +1,94 @@
+╔══════════════════════════════════════════════════════════════╗
+║              HOLY CLUB — CREDENCIALES STAFF                  ║
+║                   (Uso interno — Confidencial)               ║
+╚══════════════════════════════════════════════════════════════╝
+
+URL APP:  https://tu-dominio.com
+LOGIN:    /login
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔑 ADMIN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Nombre:   Tomi Mayer
+Usuario:  n0thing
+Pass:     ratona
+Rol:      admin
+Acceso:   Dashboard completo, crear eventos, gestión
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎫 CAJEROS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Nombre:   Franco
+Usuario:  franco
+Pass:     123321
+Acceso:   Escáner de entrada (Taquilla)
+
+Nombre:   Claudia
+Usuario:  claudia
+Pass:     153624
+Acceso:   Escáner de entrada (Taquilla)
+
+Nombre:   Diego
+Usuario:  diego
+Pass:     salta442
+Acceso:   Escáner de entrada (Taquilla)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 RRPP — LINKS PERSONALES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  #  Nombre                Usuario    Pass                Link
+────────────────────────────────────────────────────────────────
+  1  Kiara Lobos           kiara      holy-kiara21        /lista/kiara
+  2  Agustin Bravo         agustin    holy-agustin22      /lista/agustin
+  3  Matias Andermatten    matias     holy-matias23       /lista/matias
+  4  Valentin Ortiz        valentin   holy-valentin24     /lista/valentin
+  5  Anto Perez            anto       holy-anto25         /lista/anto
+  6  Camila Gonet          camila     holy-camila26       /lista/camila
+  7  Julieta Moya          julieta    holy-julieta27      /lista/julieta
+  8  Antonella Duca        antonella  holy-antonella28    /lista/antonella
+  9  Abril Haedo           abril      holy-abril29        /lista/abril
+ 10  Valen Flores          valen      holy-valen30        /lista/valen
+ 11  Maar Florespauli      maar       holy-maar31         /lista/maar
+ 12  Celina Yañez          celina     holy-celina32       /lista/celina
+ 13  Azul Bello            azul       holy-azul33         /lista/azul
+ 14  Lucia Valdebenito     lucia      holy-lucia34        /lista/lucia
+ 15  Josema Gonzalez       josema     holy-josema35       /lista/josema
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📱 CÓMO USAR CADA ROL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ADMIN (Tomi):
+  1. Entrar con usuario n0thing
+  2. Crear evento desde Dashboard
+  3. Ver ranking, estadísticas, gestionar RRPP
+  4. Crear QR Gold y Promos para la noche
+
+CAJEROS (Franco / Claudia / Diego):
+  1. Entrar con su usuario
+  2. Abrir Taquilla → apuntar cámara al QR del invitado
+     ✅ Verde = ENTRA FREE
+     🔴 Rojo  = QR usado o inválido
+     🟡 Amarillo = Fuera de horario (cobrar entrada)
+
+RRPP:
+  1. Entrar con su usuario
+  2. Copiar/compartir su link personal
+  3. Los invitados se registran en ese link
+  4. El RRPP ve cuántos anotados e ingresos tiene
+  5. Al llegar a 35 ingresos → se desbloquea QR de botella
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚙  SETUP TÉCNICO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Orden de migración SQL (ejecutar en Supabase SQL Editor):
+  1. supabase/migrations/001_initial.sql     ← Tablas + triggers
+  2. supabase/migrations/002_seed_users.sql  ← Usuarios reales
+  3. supabase/migrations/003_fix_rls.sql     ← Permisos por rol
+
+Variables de entorno (.env.local):
+  NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
+  NEXT_PUBLIC_APP_URL=https://tu-dominio.com

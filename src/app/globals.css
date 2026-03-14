@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 262 76% 6%;
+    --foreground: 270 100% 95%;
+    --card: 262 58% 14%;
+    --card-foreground: 270 100% 95%;
+    --border: 270 50% 21%;
+    --accent: 280 100% 72%;
+    --accent-foreground: 0 0% 0%;
+    --muted: 270 30% 45%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-background text-text-primary;
+    min-height: 100dvh;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0b0716;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #be71ff44;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #be71ff88;
+  }
+}
+
+@layer components {
+  .holy-card {
+    @apply bg-card border border-border rounded-2xl p-4 shadow-card;
+  }
+
+  .holy-btn-primary {
+    @apply w-full py-4 px-6 rounded-xl font-display text-sm tracking-widest uppercase font-bold
+    bg-gradient-purple text-black transition-all duration-200
+    active:scale-95 hover:shadow-purple disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .holy-btn-secondary {
+    @apply w-full py-4 px-6 rounded-xl font-display text-sm tracking-widest uppercase font-bold
+    bg-card border border-border text-text-primary transition-all duration-200
+    active:scale-95 hover:border-accent-purple hover:text-accent-purple disabled:opacity-40;
+  }
+
+  .holy-btn-danger {
+    @apply w-full py-4 px-6 rounded-xl font-display text-sm tracking-widest uppercase font-bold
+    bg-danger/20 border border-danger text-danger transition-all duration-200
+    active:scale-95 hover:bg-danger/30 disabled:opacity-40;
+  }
+
+  .holy-input {
+    @apply w-full px-4 py-3.5 rounded-xl bg-background border border-border text-text-primary
+    placeholder:text-text-muted focus:outline-none focus:border-accent-purple focus:ring-2
+    focus:ring-accent-purple/20 transition-all duration-200 text-base;
+  }
+
+  .holy-label {
+    @apply block text-xs font-semibold uppercase tracking-widest text-text-muted mb-2;
+  }
+
+  .stat-card {
+    @apply holy-card flex flex-col gap-1;
+  }
+
+  .stat-value {
+    @apply font-display text-3xl font-bold text-accent-purple;
+  }
+
+  .stat-label {
+    @apply text-xs uppercase tracking-widest text-text-muted;
+  }
+
+  .glow-text {
+    text-shadow: 0 0 20px rgba(190, 113, 255, 0.8);
+  }
+}
+
+/* Background mesh */
+.mesh-bg {
+  background-image: radial-gradient(
+      at 40% 20%,
+      rgba(59, 31, 110, 0.4) 0px,
+      transparent 50%
+    ),
+    radial-gradient(at 80% 0%, rgba(30, 10, 60, 0.3) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, rgba(45, 10, 92, 0.4) 0px, transparent 50%);
+}
+
+/* Scanner overlay */
+.scanner-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 240px;
+  height: 240px;
+  border-radius: 16px;
+}
+
+.scanner-corner {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-color: #be71ff;
+  border-style: solid;
+}
+
+.scanner-corner-tl {
+  top: 0;
+  left: 0;
+  border-width: 3px 0 0 3px;
+  border-radius: 8px 0 0 0;
+}
+
+.scanner-corner-tr {
+  top: 0;
+  right: 0;
+  border-width: 3px 3px 0 0;
+  border-radius: 0 8px 0 0;
+}
+
+.scanner-corner-bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 3px 3px;
+  border-radius: 0 0 0 8px;
+}
+
+.scanner-corner-br {
+  bottom: 0;
+  right: 0;
+  border-width: 0 3px 3px 0;
+  border-radius: 0 0 8px 0;
+}
+
+@keyframes scan-line {
+  0% {
+    top: 8px;
+  }
+  100% {
+    top: calc(100% - 8px);
+  }
+}
+
+.scan-line {
+  animation: scan-line 2s ease-in-out infinite alternate;
+}
+
+/* Rank positions animation */
+@keyframes rank-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(190, 113, 255, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(190, 113, 255, 0.5); }
+}
+
+.rank-1 { animation: rank-glow 2s ease-in-out infinite; }
