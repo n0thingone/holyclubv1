@@ -152,7 +152,28 @@ export default function ScannerPage() {
     by: string,
     scannerMode: ScannerMode
   ): Promise<ScanResult> {
-    const cleanToken = token.trim();
+    let cleanToken = token.trim();
+
+    try {
+      if (
+        cleanToken.startsWith("http://") ||
+        cleanToken.startsWith("https://")
+      ) {
+        const url = new URL(cleanToken);
+
+        cleanToken =
+          url.searchParams.get("token") ||
+          url.searchParams.get("qr") ||
+          "";
+
+        if (!cleanToken) {
+          const parts = url.pathname.split("/");
+          cleanToken = parts[parts.length - 1] || "";
+        }
+      }
+    } catch {}
+
+    cleanToken = cleanToken.trim();
 
     const { data: gold, error: goldError } = await supabase
       .from("gold_qrs")
@@ -379,7 +400,11 @@ export default function ScannerPage() {
             <ScanLine className="w-5 h-5 text-accent-purple" />
             TAQUILLA
           </h1>
-          <p className={`text-xs mt-0.5 ${event ? "text-text-muted" : "text-danger"}`}>
+          <p
+            className={`text-xs mt-0.5 ${
+              event ? "text-text-muted" : "text-danger"
+            }`}
+          >
             {event ? event.name : "⚠ Sin evento activo"}
           </p>
         </div>
@@ -416,10 +441,16 @@ export default function ScannerPage() {
             {[
               { label: "Free", val: nightStats.valid, color: "text-success" },
               { label: "Gold", val: nightStats.gold, color: "text-gold" },
-              { label: "Rechazos", val: nightStats.invalid, color: "text-danger" },
+              {
+                label: "Rechazos",
+                val: nightStats.invalid,
+                color: "text-danger",
+              },
             ].map((s) => (
               <div key={s.label} className="holy-card py-3 text-center">
-                <p className={`font-display text-2xl font-black ${s.color}`}>{s.val}</p>
+                <p className={`font-display text-2xl font-black ${s.color}`}>
+                  {s.val}
+                </p>
                 <p className="text-[10px] text-text-muted uppercase tracking-widest mt-0.5">
                   {s.label}
                 </p>
@@ -462,7 +493,10 @@ export default function ScannerPage() {
       {!scanResult ? (
         <div className="animate-fade-in">
           {event ? (
-            <QRScanner onScan={handleScan} paused={processing || !event || !staffId} />
+            <QRScanner
+              onScan={handleScan}
+              paused={processing || !event || !staffId}
+            />
           ) : (
             <div className="holy-card py-10 text-center">
               <p className="text-text-muted text-sm">No hay evento activo</p>
@@ -490,7 +524,9 @@ export default function ScannerPage() {
           >
             <cfg.Icon className={`w-20 h-20 mx-auto mb-4 ${cfg.text}`} />
 
-            <div className={`font-display text-3xl font-black tracking-widest mb-3 ${cfg.text}`}>
+            <div
+              className={`font-display text-3xl font-black tracking-widest mb-3 ${cfg.text}`}
+            >
               {labels[scanResult.result]}
             </div>
 
@@ -555,7 +591,9 @@ export default function ScannerPage() {
                   >
                     {e.color === "gold" ? "GOLD" : "FREE"}
                   </p>
-                  <p className="text-[10px] text-text-muted font-mono">{e.time}</p>
+                  <p className="text-[10px] text-text-muted font-mono">
+                    {e.time}
+                  </p>
                 </div>
               </div>
             ))}
