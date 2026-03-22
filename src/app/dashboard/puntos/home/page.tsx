@@ -217,7 +217,7 @@ export default function PuntosHomePage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     if (!activeEvent?.id) return;
@@ -236,7 +236,7 @@ export default function PuntosHomePage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [activeEvent?.id]);
+  }, [activeEvent?.id, supabase]);
 
   useEffect(() => {
     if (!activeEvent?.id) return;
@@ -255,7 +255,7 @@ export default function PuntosHomePage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [activeEvent?.id]);
+  }, [activeEvent?.id, supabase]);
 
   const heroData = useMemo(() => {
     if (!activeEvent) {
@@ -313,8 +313,8 @@ export default function PuntosHomePage() {
   }, [activeEvent, now]);
 
   const balance =
-    typeof profile?.holy_points_balance === "number"
-      ? profile.holy_points_balance
+    typeof (profile as any)?.holy_points_balance === "number"
+      ? (profile as any).holy_points_balance
       : 0;
 
   const eventEnergyText = useMemo(() => {
