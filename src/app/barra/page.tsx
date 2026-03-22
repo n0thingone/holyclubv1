@@ -28,7 +28,10 @@ type RedeemResponse = {
 function playBeep(success: boolean) {
   try {
     const AudioCtx =
-      window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      window.AudioContext ||
+      (window as typeof window & {
+        webkitAudioContext?: typeof AudioContext;
+      }).webkitAudioContext;
 
     if (!AudioCtx) return;
 
@@ -145,7 +148,6 @@ export default function BarraScannerPage() {
   const canUseScanner =
     profile?.role === "admin" ||
     profile?.role === "bar" ||
-    profile?.role === "cajero" ||
     profile?.role === "cashier";
 
   if (!canUseScanner) {
