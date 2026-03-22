@@ -75,17 +75,25 @@ export default function BarraScannerPage() {
 
   const scanLockRef = useRef(false);
 
+  // 🔥 PARSE TOKEN ARREGLADO
   const parseToken = (rawValue: string) => {
     let token = rawValue.trim();
 
     try {
       if (token.startsWith("http://") || token.startsWith("https://")) {
         const url = new URL(token);
+
+        // 1. query params
         token =
           url.searchParams.get("token") ||
           url.searchParams.get("qr") ||
-          url.pathname.split("/").pop() ||
-          token;
+          "";
+
+        // 2. si no hay params → último segmento
+        if (!token) {
+          const parts = url.pathname.split("/");
+          token = parts[parts.length - 1];
+        }
       }
     } catch {}
 
@@ -192,10 +200,6 @@ export default function BarraScannerPage() {
                 <h2 className="text-xl font-bold">Escanear QR</h2>
               </div>
 
-              <p className="text-white/70 mb-4">
-                Escaneá el QR del cliente para confirmar el canje en barra.
-              </p>
-
               <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
                 <QRScanner onScan={redeemToken} paused={loading} />
               </div>
@@ -204,40 +208,31 @@ export default function BarraScannerPage() {
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Keyboard className="h-5 w-5 text-fuchsia-300" />
-                <h2 className="font-semibold">Confirmar por token manual</h2>
+                <h2 className="font-semibold">Token manual</h2>
               </div>
 
-              <div className="flex flex-col md:flex-row gap-3">
+              <div className="flex gap-3">
                 <input
                   value={manualToken}
                   onChange={(e) => setManualToken(e.target.value)}
-                  placeholder="Pegá el token del QR"
-                  className="flex-1 rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-white outline-none"
+                  placeholder="Pegá el token"
+                  className="flex-1 rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-white"
                 />
 
                 <button
                   onClick={handleManualSubmit}
                   disabled={loading || !manualToken.trim()}
-                  className="rounded-xl bg-fuchsia-600 px-5 py-3 font-semibold text-white disabled:opacity-50 hover:bg-fuchsia-500"
+                  className="rounded-xl bg-fuchsia-600 px-5 py-3 font-semibold text-white"
                 >
-                  Confirmar
+                  OK
                 </button>
               </div>
             </div>
-
-            {loading && (
-              <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-yellow-300 animate-pulse" />
-                  <p className="font-medium">Validando canje...</p>
-                </div>
-              </div>
-            )}
           </div>
 
           <div>
             <div
-              className={`min-h-[420px] rounded-[32px] border p-6 md:p-8 shadow-2xl transition-all ${
+              className={`min-h-[420px] rounded-[32px] border p-6 md:p-8 ${
                 success
                   ? "border-green-500/30 bg-green-500/15"
                   : failed
@@ -246,112 +241,48 @@ export default function BarraScannerPage() {
               }`}
             >
               {!result && !loading && (
-                <div className="h-full flex flex-col items-center justify-center text-center">
-                  <ScanLine className="h-16 w-16 text-white/25 mb-5" />
+                <div className="h-full flex items-center justify-center text-center">
                   <h2 className="text-3xl font-extrabold text-white/90">
                     Esperando QR
                   </h2>
-                  <p className="mt-3 text-white/55 max-w-sm">
-                    Escaneá un QR o pegá un token manual para confirmar el canje.
-                  </p>
                 </div>
               )}
 
               {loading && (
-                <div className="h-full flex flex-col items-center justify-center text-center">
-                  <Clock className="h-16 w-16 text-yellow-300 animate-pulse mb-5" />
+                <div className="h-full flex items-center justify-center text-center">
                   <h2 className="text-3xl font-extrabold text-yellow-200">
                     VALIDANDO...
                   </h2>
-                  <p className="mt-3 text-white/65">
-                    Consultando estado del QR
-                  </p>
                 </div>
               )}
 
               {result && success && (
-                <div className="h-full flex flex-col justify-center text-center">
+                <div className="text-center">
                   <CheckCircle className="mx-auto h-20 w-20 text-green-400 mb-5" />
-                  <h2 className="text-4xl md:text-5xl font-black tracking-wide text-green-300">
+                  <h2 className="text-4xl font-black text-green-300">
                     CANJE OK
                   </h2>
-
-                  <div className="mt-6 rounded-3xl border border-green-400/20 bg-black/20 p-5">
-                    <p className="text-sm uppercase tracking-[0.25em] text-green-200/70">
-                      Recompensa
-                    </p>
-                    <p className="mt-2 text-2xl md:text-3xl font-extrabold text-white">
-                      {result.reward_name || "Recompensa"}
-                    </p>
-
-                    {typeof result.points_cost === "number" && (
-                      <p className="mt-3 text-xl md:text-2xl font-bold text-green-200">
-                        -{result.points_cost} créditos
-                      </p>
-                    )}
-                  </div>
-
-                  {lastToken && (
-                    <p className="mt-5 break-all text-xs text-white/45">
-                      {lastToken}
-                    </p>
-                  )}
+                  <p className="mt-4 text-white">
+                    {result.reward_name}
+                  </p>
                 </div>
               )}
 
               {result && failed && (
-                <div className="h-full flex flex-col justify-center text-center">
+                <div className="text-center">
                   <XCircle className="mx-auto h-20 w-20 text-red-400 mb-5" />
-                  <h2 className="text-4xl md:text-5xl font-black tracking-wide text-red-300">
+                  <h2 className="text-4xl font-black text-red-300">
                     ERROR
                   </h2>
-
-                  <div className="mt-6 rounded-3xl border border-red-400/20 bg-black/20 p-5">
-                    <p className="text-xl md:text-2xl font-bold text-white">
-                      {result.message}
-                    </p>
-
-                    {result.code && (
-                      <p className="mt-3 text-sm uppercase tracking-[0.2em] text-red-200/70">
-                        Estado: {result.code}
-                      </p>
-                    )}
-                  </div>
-
-                  {lastToken && (
-                    <p className="mt-5 break-all text-xs text-white/45">
-                      {lastToken}
-                    </p>
-                  )}
+                  <p className="mt-4 text-white">{result.message}</p>
                 </div>
               )}
             </div>
 
-            {result && (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                <div className="space-y-1">
-                  <p>
-                    <span className="text-white">Mensaje:</span> {result.message}
-                  </p>
-                  {result.reward_name && (
-                    <p>
-                      <span className="text-white">Recompensa:</span>{" "}
-                      {result.reward_name}
-                    </p>
-                  )}
-                  {typeof result.points_cost === "number" && (
-                    <p>
-                      <span className="text-white">Costo:</span>{" "}
-                      {result.points_cost} créditos
-                    </p>
-                  )}
-                  {lastToken && (
-                    <p className="break-all">
-                      <span className="text-white">Token:</span> {lastToken}
-                    </p>
-                  )}
-                </div>
-              </div>
+            {lastToken && (
+              <p className="mt-4 text-xs text-white/40 break-all text-center">
+                {lastToken}
+              </p>
             )}
           </div>
         </div>
