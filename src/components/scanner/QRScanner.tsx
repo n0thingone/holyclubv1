@@ -30,11 +30,6 @@ export default function QRScanner({ onScan, paused = false }: Props) {
     } catch {}
 
     controlsRef.current = null;
-
-    try {
-      readerRef.current?.reset();
-    } catch {}
-
     readerRef.current = null;
     isRunningRef.current = false;
 
