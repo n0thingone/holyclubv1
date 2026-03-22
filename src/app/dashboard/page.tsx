@@ -207,11 +207,11 @@ export default function DashboardPage() {
   const [now, setNow] = useState(Date.now());
 
   const role = profile?.role;
-  const isAdmin =
-    role === "admin" ||
-    role === "barra" ||
-    role === "cashier" ||
-    role === "cajero";
+const isAdmin =
+  role === "admin" ||
+  role === "bar" ||
+  role === "cashier";
+   
 
   useEffect(() => {
     if (!authLoading && profile && !isAdmin) {

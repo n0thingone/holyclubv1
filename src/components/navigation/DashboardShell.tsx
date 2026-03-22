@@ -24,10 +24,10 @@ export default function DashboardShell({ children }: DashboardShellProps) {
   const role = profile?.role;
 
   const canSeeBarScanner =
-    role === "admin" ||
-    role === "barra" ||
-    role === "cashier" ||
-    role === "cajero";
+ const isAdmin =
+  role === "admin" ||
+  role === "bar" ||
+  role === "cashier";
 
   const isClientView =
     pathname.startsWith("/dashboard/puntos") ||

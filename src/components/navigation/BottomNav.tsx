@@ -19,11 +19,10 @@ export default function BottomNav() {
 
   const role = profile?.role;
 
-  const isAdmin =
-    role === "admin" ||
-    role === "barra" ||
-    role === "cashier" ||
-    role === "cajero";
+const isAdmin =
+  role === "admin" ||
+  role === "bar" ||
+  role === "cashier";
 
   const homeHref = isAdmin
     ? "/dashboard"
