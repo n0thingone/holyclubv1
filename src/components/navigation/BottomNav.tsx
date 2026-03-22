@@ -19,12 +19,12 @@ export default function BottomNav() {
 
   const role = profile?.role;
 
-const isAdmin =
-  role === "admin" ||
-  role === "bar" ||
-  role === "cashier";
+  const canSeeBarScanner =
+    role === "admin" ||
+    role === "bar" ||
+    role === "cashier";
 
-  const homeHref = isAdmin
+  const homeHref = canSeeBarScanner
     ? "/dashboard"
     : "/dashboard/puntos/home";
 
@@ -36,13 +36,20 @@ const isAdmin =
       label: "MOVIM.",
       icon: ArrowLeftRight,
     },
-    { href: "/dashboard/scanner", label: "BARRA", icon: ScanLine },
     {
       href: "/dashboard/puntos/beneficios",
       label: "BENEF.",
       icon: Sparkles,
     },
   ];
+
+  if (canSeeBarScanner) {
+    items.splice(3, 0, {
+      href: "/dashboard/scanner",
+      label: "BARRA",
+      icon: ScanLine,
+    });
+  }
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-fuchsia-500/20 bg-[#1a0123]/95 backdrop-blur-xl">

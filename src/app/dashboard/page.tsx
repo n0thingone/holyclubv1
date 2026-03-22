@@ -207,11 +207,10 @@ export default function DashboardPage() {
   const [now, setNow] = useState(Date.now());
 
   const role = profile?.role;
-const isAdmin =
-  role === "admin" ||
-  role === "bar" ||
-  role === "cashier";
-   
+  const isAdmin =
+    role === "admin" ||
+    role === "bar" ||
+    role === "cashier";
 
   useEffect(() => {
     if (!authLoading && profile && !isAdmin) {
@@ -406,7 +405,9 @@ const isAdmin =
     };
   }, [activeEvent, now]);
 
-  async function toggleEventVisibility(field: "show_entry_count" | "show_list_count") {
+  async function toggleEventVisibility(
+    field: "show_entry_count" | "show_list_count"
+  ) {
     if (!activeEvent) return;
 
     setUpdatingVisibility(true);
@@ -441,8 +442,8 @@ const isAdmin =
           ? "Ahora los clientes pueden ver los ingresos."
           : "Los ingresos quedaron ocultos para clientes."
         : nextValue
-          ? "Ahora los clientes pueden ver la cantidad en lista."
-          : "La cantidad en lista quedó oculta para clientes."
+        ? "Ahora los clientes pueden ver la cantidad en lista."
+        : "La cantidad en lista quedó oculta para clientes."
     );
 
     setUpdatingVisibility(false);
@@ -560,8 +561,8 @@ const isAdmin =
 
   if (authLoading || !profile) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
-        <div className="w-8 h-8 border-2 border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-fuchsia-500/30 border-t-fuchsia-500" />
       </div>
     );
   }
@@ -574,7 +575,7 @@ const isAdmin =
     <main className="min-h-screen bg-neutral-950 px-4 py-6 text-white">
       <div className="mx-auto max-w-6xl space-y-6">
         <section className="relative overflow-hidden rounded-[32px] border border-fuchsia-500/20 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.22),transparent_28%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.18),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-6 shadow-[0_0_60px_rgba(168,85,247,0.10)] sm:p-8">
-          <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.15))]" />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.15))]" />
 
           <div className="relative flex items-start justify-between gap-6">
             <div className="max-w-4xl">
@@ -594,7 +595,7 @@ const isAdmin =
                   <div className="flex items-center gap-3 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-emerald-300">
                     <span className="relative flex h-3 w-3">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="relative inline-flex h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
                     </span>
                     <span>🟢 EN VIVO</span>
                   </div>
@@ -727,7 +728,7 @@ const isAdmin =
               </div>
             </div>
 
-            <div className="hidden lg:flex h-20 w-20 shrink-0 items-center justify-center rounded-[28px] border border-fuchsia-400/20 bg-black/20 text-fuchsia-300">
+            <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-[28px] border border-fuchsia-400/20 bg-black/20 text-fuchsia-300 lg:flex">
               <Zap className="h-10 w-10" />
             </div>
           </div>
@@ -908,7 +909,7 @@ const isAdmin =
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full rounded-2xl bg-fuchsia-600 px-4 py-3 font-semibold text-white transition hover:bg-fuchsia-500 disabled:opacity-50 shadow-[0_0_20px_rgba(217,70,239,0.22)]"
+                className="w-full rounded-2xl bg-fuchsia-600 px-4 py-3 font-semibold text-white shadow-[0_0_20px_rgba(217,70,239,0.22)] transition hover:bg-fuchsia-500 disabled:opacity-50"
               >
                 {saving ? "Creando evento..." : "Crear evento"}
               </button>

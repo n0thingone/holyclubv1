@@ -23,17 +23,17 @@ export default function DashboardShell({ children }: DashboardShellProps) {
 
   const role = profile?.role;
 
+  // 🔥 ROLES CORRECTOS (FIX TOTAL)
   const canSeeBarScanner =
- const isAdmin =
-  role === "admin" ||
-  role === "bar" ||
-  role === "cashier";
+    role === "admin" ||
+    role === "bar" ||
+    role === "cashier";
 
   const isClientView =
     pathname.startsWith("/dashboard/puntos") ||
     pathname.startsWith("/dashboard/beneficios");
 
-  // 🔥 CRÉDITOS LIVE (como antes)
+  // 🔥 CRÉDITOS LIVE
   const profileCredits = Number((profile as any)?.holy_points_balance ?? 0);
   const [liveCredits, setLiveCredits] = useState(profileCredits);
 
@@ -99,7 +99,7 @@ export default function DashboardShell({ children }: DashboardShellProps) {
       },
     ];
 
-    // 🔥 SOLO ADMIN Y NO EN VISTA CLIENTE
+    // 🔥 SOLO ADMIN/BARRA
     if (canSeeBarScanner && !isClientView) {
       base.splice(3, 0, {
         href: "/dashboard/scanner",
@@ -127,12 +127,10 @@ export default function DashboardShell({ children }: DashboardShellProps) {
           {/* DERECHA */}
           <div className="flex items-center gap-3">
 
-            {/* ONLINE (fake por ahora) */}
             <div className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1 rounded-full">
               EN LÍNEA 128
             </div>
 
-            {/* CRÉDITOS LIVE */}
             <div className="bg-fuchsia-500/20 text-fuchsia-300 text-xs px-3 py-1 rounded-full">
               {liveCredits.toLocaleString("es-AR")} CRÉDITOS
             </div>
