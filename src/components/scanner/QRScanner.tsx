@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { Camera, ScanLine, RotateCcw } from "lucide-react";
+import { Camera, RotateCcw, ScanLine } from "lucide-react";
 
 interface Props {
   onScan: (qr: string) => void;
@@ -85,28 +85,47 @@ export default function QRScanner({ onScan, paused = false }: Props) {
           ? Math.min(280, Math.floor(window.innerWidth * 0.72))
           : 250;
 
+      const config = {
+        fps: 10,
+        qrbox: { width: qrSize, height: qrSize },
+        aspectRatio: 1,
+      };
+
+      let started = false;
+
       try {
         await scanner.start(
-          { facingMode: { ideal: "environment" } },
-          {
-            fps: 12,
-            qrbox: { width: qrSize, height: qrSize },
-            aspectRatio: 1,
-          },
-          handleDecoded,
-          () => {}
-        );
-      } catch {
-        await scanner.start(
           { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: qrSize, height: qrSize },
-            aspectRatio: 1,
-          },
+          config,
           handleDecoded,
           () => {}
         );
+        started = true;
+      } catch (firstError) {
+        console.warn("Falló facingMode environment:", firstError);
+
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+
+          if (!cameras || cameras.length === 0) {
+            throw new Error("No se encontraron cámaras en el dispositivo.");
+          }
+
+          const backCamera =
+            cameras.find((cam) =>
+              /back|rear|trasera|environment/i.test(cam.label)
+            ) || cameras[cameras.length - 1];
+
+          await scanner.start(backCamera.id, config, handleDecoded, () => {});
+          started = true;
+        } catch (secondError) {
+          console.warn("Falló apertura por camera id:", secondError);
+          throw secondError;
+        }
+      }
+
+      if (!started) {
+        throw new Error("No se pudo iniciar el scanner.");
       }
 
       isRunningRef.current = true;
@@ -121,7 +140,7 @@ export default function QRScanner({ onScan, paused = false }: Props) {
       if (mountedRef.current) {
         setScanning(false);
         setErrorMsg(
-          "No se pudo abrir la cámara. Probá tocando de nuevo o revisá permisos del navegador."
+          "No se pudo abrir la cámara en este dispositivo. Probá tocar reintentar o usá el token manual."
         );
       }
     } finally {
@@ -152,10 +171,10 @@ export default function QRScanner({ onScan, paused = false }: Props) {
             setScannerReady(true);
             setTimeout(() => {
               void startScanner();
-            }, 50);
+            }, 120);
           }}
           disabled={paused}
-          className="group flex w-full max-w-[420px] items-center justify-center gap-3 rounded-2xl border border-fuchsia-400/20 bg-gradient-to-r from-fuchsia-600 to-violet-500 px-5 py-4 text-white shadow-[0_0_30px_rgba(217,70,239,0.25)] transition hover:scale-[1.01] disabled:opacity-50"
+          className="flex w-full max-w-[420px] items-center justify-center gap-3 rounded-2xl border border-fuchsia-400/20 bg-gradient-to-r from-fuchsia-600 to-violet-500 px-5 py-4 text-white shadow-[0_0_30px_rgba(217,70,239,0.25)] transition hover:scale-[1.01] disabled:opacity-50"
         >
           <Camera className="h-5 w-5" />
           <span className="text-sm font-bold tracking-[0.18em] uppercase">
@@ -166,9 +185,7 @@ export default function QRScanner({ onScan, paused = false }: Props) {
 
       <div
         className={`${scannerReady ? "block" : "hidden"} w-full`}
-        style={{
-          maxWidth: "420px",
-        }}
+        style={{ maxWidth: "420px" }}
       >
         <div
           id="qr-reader"
