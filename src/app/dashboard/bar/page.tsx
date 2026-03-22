@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { useActiveEvent } from "@/hooks/useActiveEvent";
-import { QRScanner } from "@/components/scanner/QRScanner";
+import QRScanner from "@/components/scanner/QRScanner";
 import { CheckCircle, XCircle, RefreshCw, GlassWater } from "lucide-react";
 
 type ScanType = "benefit" | "reward" | "promo" | "invalid" | "used";
@@ -21,7 +21,6 @@ export default function BarPage() {
   const { event } = useActiveEvent();
   const [scanResult, setScanResult] = useState<BarScanResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [scanActive, setScanActive] = useState(true);
   const { profile } = useAuth();
   const staffId = profile?.id ?? null;
   const supabase = getSupabaseClient();
@@ -29,19 +28,22 @@ export default function BarPage() {
   const handleScan = useCallback(
     async (token: string) => {
       if (isProcessing || !staffId) return;
+
       setIsProcessing(true);
-      setScanActive(false);
 
       try {
         const result = await processBarQr(token, staffId);
         setScanResult(result);
       } catch {
-        setScanResult({ type: "invalid", title: "Error", success: false });
+        setScanResult({
+          type: "invalid",
+          title: "Error",
+          success: false,
+        });
       }
 
       setTimeout(() => {
         setScanResult(null);
-        setScanActive(true);
         setIsProcessing(false);
       }, 4000);
     },
@@ -52,10 +54,7 @@ export default function BarPage() {
     token: string,
     redeemedBy: string
   ): Promise<BarScanResult> {
-    // Check benefit (vaso litro) - benefits don't have QR tokens, they're issued per event
-    // Bar staff redeems by checking rrpp manually, but for now check reward QRs
 
-    // Check reward QR
     const { data: reward } = await supabase
       .from("rrpp_event_rewards")
       .select("*, rrpp_profiles(display_name)")
@@ -67,11 +66,12 @@ export default function BarPage() {
         return {
           type: "used",
           title: "Premio ya canjeado",
-          description: `${reward.title}`,
+          description: reward.title,
           rrppName: reward.rrpp_profiles?.display_name,
           success: false,
         };
       }
+
       if (reward.status !== "unlocked") {
         return {
           type: "invalid",
@@ -99,7 +99,6 @@ export default function BarPage() {
       };
     }
 
-    // Check promo QR
     const { data: promo } = await supabase
       .from("promo_qrs")
       .select("*")
@@ -115,6 +114,7 @@ export default function BarPage() {
           success: false,
         };
       }
+
       if (promo.used_count >= promo.max_uses) {
         return {
           type: "used",
@@ -124,7 +124,6 @@ export default function BarPage() {
         };
       }
 
-      // Check time validity
       if (promo.valid_until && new Date() > new Date(promo.valid_until)) {
         return {
           type: "used",
@@ -139,10 +138,12 @@ export default function BarPage() {
         .update({ used_count: promo.used_count + 1 })
         .eq("id", promo.id);
 
-      await supabase.from("promo_redemptions").insert({
-        promo_id: promo.id,
-        redeemed_by: redeemedBy,
-      });
+      await supabase
+        .from("promo_redemptions")
+        .insert({
+          promo_id: promo.id,
+          redeemed_by: redeemedBy,
+        });
 
       return {
         type: "promo",
@@ -162,11 +163,13 @@ export default function BarPage() {
 
   return (
     <div className="px-4 py-6 space-y-6 max-w-sm mx-auto">
+
       <div>
         <h1 className="font-display text-2xl font-black tracking-widest text-white flex items-center gap-2">
           <GlassWater className="w-6 h-6 text-accent-purple" />
           BARRA
         </h1>
+
         <p className="text-text-muted text-sm mt-1">
           Escáner de premios y promos
         </p>
@@ -174,7 +177,7 @@ export default function BarPage() {
 
       {!scanResult && (
         <div className="animate-fade-in">
-          <QRScanner onScan={handleScan} active={scanActive} />
+          <QRScanner onScan={handleScan} />
           <p className="text-center text-text-muted text-xs mt-3 tracking-widest uppercase">
             Apunta al QR de premio o promo
           </p>
@@ -185,8 +188,8 @@ export default function BarPage() {
         <div
           className={`holy-card border-2 text-center py-10 px-4 animate-scale-in ${
             scanResult.success
-              ? "bg-success/10 border-success/40 shadow-[0_0_40px_rgba(34,197,94,0.3)]"
-              : "bg-danger/10 border-danger/40 shadow-[0_0_40px_rgba(239,68,68,0.3)]"
+              ? "bg-success/10 border-success/40"
+              : "bg-danger/10 border-danger/40"
           }`}
         >
           {scanResult.success ? (
@@ -208,7 +211,9 @@ export default function BarPage() {
           </p>
 
           {scanResult.description && (
-            <p className="text-text-muted text-sm">{scanResult.description}</p>
+            <p className="text-text-muted text-sm">
+              {scanResult.description}
+            </p>
           )}
 
           {scanResult.rrppName && (
@@ -219,14 +224,6 @@ export default function BarPage() {
               </span>
             </p>
           )}
-
-          <p className="text-text-muted text-xs mt-4">
-            {new Date().toLocaleTimeString("es-AR", {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })}
-          </p>
         </div>
       )}
 
@@ -234,7 +231,6 @@ export default function BarPage() {
         <button
           onClick={() => {
             setScanResult(null);
-            setScanActive(true);
             setIsProcessing(false);
           }}
           className="holy-btn-secondary flex items-center justify-center gap-2"
@@ -243,6 +239,7 @@ export default function BarPage() {
           ESCANEAR OTRO
         </button>
       )}
+
     </div>
   );
 }

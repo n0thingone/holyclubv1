@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { RrppEventBenefit, RrppEventReward } from "@/types";
 
@@ -21,27 +21,134 @@ export function useRrppStats(rrppId?: string, eventId?: string) {
     rewards: [],
   });
   const [loading, setLoading] = useState(true);
-  const supabase = getSupabaseClient();
+  const supabase = useMemo(() => getSupabaseClient(), []);
 
-  useEffect(() => {
+  const fetchStats = useCallback(async () => {
     if (!rrppId || !eventId) {
+      setStats({
+        registered: 0,
+        checkedIn: 0,
+        position: 0,
+        benefits: [],
+        rewards: [],
+      });
       setLoading(false);
       return;
     }
 
+    try {
+      setLoading(true);
+
+      const [registrationsRes, rankingRes, benefitsRes, rewardsRes] =
+        await Promise.all([
+          supabase
+            .from("guest_registrations")
+            .select("id, registration_status")
+            .eq("rrpp_id", rrppId)
+            .eq("event_id", eventId),
+
+          supabase
+            .from("rrpp_ranking")
+            .select("position, checkin_count")
+            .eq("rrpp_id", rrppId)
+            .eq("event_id", eventId)
+            .maybeSingle(),
+
+          supabase
+            .from("rrpp_event_benefits")
+            .select("*")
+            .eq("rrpp_id", rrppId)
+            .eq("event_id", eventId),
+
+          supabase
+            .from("rrpp_event_rewards")
+            .select("*")
+            .eq("rrpp_id", rrppId)
+            .eq("event_id", eventId),
+        ]);
+
+      if (registrationsRes.error) throw registrationsRes.error;
+      if (rankingRes.error) throw rankingRes.error;
+      if (benefitsRes.error) throw benefitsRes.error;
+      if (rewardsRes.error) throw rewardsRes.error;
+
+      const registrations = registrationsRes.data || [];
+      const checkedInFromRegistrations = registrations.filter(
+        (r) => r.registration_status === "checked_in"
+      ).length;
+
+      setStats({
+        registered: registrations.length,
+        checkedIn:
+          rankingRes.data?.checkin_count ?? checkedInFromRegistrations ?? 0,
+        position: rankingRes.data?.position ?? 0,
+        benefits: (benefitsRes.data as RrppEventBenefit[]) || [],
+        rewards: (rewardsRes.data as RrppEventReward[]) || [],
+      });
+    } catch (error) {
+      console.error("Error cargando stats RRPP:", error);
+      setStats({
+        registered: 0,
+        checkedIn: 0,
+        position: 0,
+        benefits: [],
+        rewards: [],
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [rrppId, eventId, supabase]);
+
+  useEffect(() => {
     fetchStats();
 
+    if (!rrppId || !eventId) return;
+
     const channel = supabase
-      .channel(`rrpp-stats-${rrppId}`)
+      .channel(`rrpp-stats-${rrppId}-${eventId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "checkins" },
+        {
+          event: "*",
+          schema: "public",
+          table: "guest_registrations",
+          filter: `rrpp_id=eq.${rrppId}`,
+        },
         () => fetchStats()
       )
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
+          schema: "public",
+          table: "checkins",
+        },
+        () => fetchStats()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "rrpp_ranking",
+          filter: `rrpp_id=eq.${rrppId}`,
+        },
+        () => fetchStats()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "rrpp_event_benefits",
+          filter: `rrpp_id=eq.${rrppId}`,
+        },
+        () => fetchStats()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
           schema: "public",
           table: "rrpp_event_rewards",
           filter: `rrpp_id=eq.${rrppId}`,
@@ -53,50 +160,7 @@ export function useRrppStats(rrppId?: string, eventId?: string) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [rrppId, eventId]);
-
-  async function fetchStats() {
-    if (!rrppId || !eventId) return;
-
-    const [registrationsRes, rankingRes, benefitsRes, rewardsRes] =
-      await Promise.all([
-        supabase
-          .from("guest_registrations")
-          .select("id, registration_status")
-          .eq("rrpp_id", rrppId)
-          .eq("event_id", eventId),
-        supabase
-          .from("rrpp_ranking")
-          .select("position, checkin_count")
-          .eq("rrpp_id", rrppId)
-          .eq("event_id", eventId)
-          .single(),
-        supabase
-          .from("rrpp_event_benefits")
-          .select("*")
-          .eq("rrpp_id", rrppId)
-          .eq("event_id", eventId),
-        supabase
-          .from("rrpp_event_rewards")
-          .select("*")
-          .eq("rrpp_id", rrppId)
-          .eq("event_id", eventId),
-      ]);
-
-    const registrations = registrationsRes.data || [];
-    const checkedIn = registrations.filter(
-      (r) => r.registration_status === "checked_in"
-    ).length;
-
-    setStats({
-      registered: registrations.length,
-      checkedIn: rankingRes.data?.checkin_count || checkedIn,
-      position: rankingRes.data?.position || 0,
-      benefits: (benefitsRes.data as RrppEventBenefit[]) || [],
-      rewards: (rewardsRes.data as RrppEventReward[]) || [],
-    });
-    setLoading(false);
-  }
+  }, [rrppId, eventId, supabase, fetchStats]);
 
   return { stats, loading, refetch: fetchStats };
 }

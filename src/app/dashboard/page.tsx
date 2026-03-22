@@ -1,809 +1,1021 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/context/AuthContext";
-import { useActiveEvent } from "@/hooks/useActiveEvent";
-import { useRanking } from "@/hooks/useRanking";
-import {
-  Users,
-  LogIn,
-  Crown,
-  Clock,
-  X,
-  QrCode,
-  Star,
-  History,
-  CheckCircle,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatTime, formatDate, generateQrToken } from "@/lib/utils";
-import type { Profile } from "@/types";
+import { getSupabaseClient } from "@/lib/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import {
+  CalendarDays,
+  Clock3,
+  Lock,
+  QrCode,
+  ScanLine,
+  Trophy,
+  Users,
+  Crown,
+  Home,
+  Gift,
+  ArrowLeftRight,
+  PlusCircle,
+  CheckCircle2,
+  AlertCircle,
+  Sparkles,
+  Shield,
+  Zap,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 
-export default function AdminDashboard() {
-  const { event, loading: eventLoading, refetch } = useActiveEvent();
-  const { ranking } = useRanking(event?.id);
-  const [stats, setStats] = useState({
-    registered: 0,
-    checkedIn: 0,
-    gold: 0,
-  });
-  const [showCreateEvent, setShowCreateEvent] = useState(false);
-  const [showGoldQr, setShowGoldQr] = useState(false);
-  const [showPromoQr, setShowPromoQr] = useState(false);
-  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
-  const [closingEvent, setClosingEvent] = useState(false);
-  const [closedSuccess, setClosedSuccess] = useState(false);
-  const { profile } = useAuth();
-  const supabase = createClient();
+type EventRow = {
+  id: string;
+  name: string;
+  event_date: string | null;
+  event_end_at: string | null;
+  status: string;
+  registration_until: string | null;
+  qr_entry_until: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  closed_at: string | null;
+  show_entry_count: boolean | null;
+  show_list_count: boolean | null;
+};
+
+type StatsState = {
+  listCount: number;
+  entryCount: number;
+};
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  return d.toLocaleString("es-AR");
+}
+
+function formatCountdown(ms: number) {
+  if (ms <= 0) return "0 MIN";
+
+  const totalMinutes = Math.floor(ms / 1000 / 60);
+
+  if (totalMinutes <= 10) {
+    return "🔥 POR COMENZAR";
+  }
+
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  const parts: string[] = [];
+
+  if (days > 0) {
+    parts.push(`${days} ${days === 1 ? "DIA" : "DIAS"}`);
+  }
+
+  if (hours > 0) {
+    parts.push(`${hours} HS`);
+  }
+
+  if (minutes > 0 || parts.length === 0) {
+    parts.push(`${minutes} MIN`);
+  }
+
+  return parts.join(" • ");
+}
+
+function getEventProgress(
+  start?: string | null,
+  end?: string | null,
+  nowTs?: number
+) {
+  if (!start || !end) {
+    return {
+      percent: null as number | null,
+      label: "Sin hora de fin",
+    };
+  }
+
+  const now = nowTs ?? Date.now();
+  const startTs = new Date(start).getTime();
+  const endTs = new Date(end).getTime();
+
+  if (Number.isNaN(startTs) || Number.isNaN(endTs) || endTs <= startTs) {
+    return {
+      percent: null as number | null,
+      label: "Duración inválida",
+    };
+  }
+
+  if (now <= startTs) {
+    return {
+      percent: 0,
+      label: "AÚN NO COMENZÓ",
+    };
+  }
+
+  if (now >= endTs) {
+    return {
+      percent: 100,
+      label: "FINALIZADO",
+    };
+  }
+
+  const percent = Math.max(
+    0,
+    Math.min(100, ((now - startTs) / (endTs - startTs)) * 100)
+  );
+
+  return {
+    percent,
+    label: `PROGRESO ${Math.round(percent)}%`,
+  };
+}
+
+function SectionCard({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] shadow-[0_10px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function QuickLink({
+  href,
+  icon: Icon,
+  title,
+  subtitle,
+  iconClassName,
+}: {
+  href: string;
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  iconClassName?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-center gap-4 rounded-[22px] border border-white/10 bg-white/[0.04] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-fuchsia-500/30 hover:bg-white/[0.07] hover:shadow-[0_0_30px_rgba(217,70,239,0.10)]"
+    >
+      <div
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-white/85 ${iconClassName || ""}`}
+      >
+        <Icon className="h-5 w-5" />
+      </div>
+
+      <div className="min-w-0">
+        <div className="font-semibold text-white">{title}</div>
+        <div className="text-sm text-white/50">{subtitle}</div>
+      </div>
+    </Link>
+  );
+}
+
+export default function DashboardPage() {
+  const supabase = getSupabaseClient();
   const router = useRouter();
+  const { profile, loading: authLoading } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [closingEvent, setClosingEvent] = useState(false);
+  const [closingLists, setClosingLists] = useState(false);
+  const [updatingVisibility, setUpdatingVisibility] = useState(false);
+
+  const [activeEvent, setActiveEvent] = useState<EventRow | null>(null);
+  const [stats, setStats] = useState<StatsState>({
+    listCount: 0,
+    entryCount: 0,
+  });
+
+  const [name, setName] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [eventEndAt, setEventEndAt] = useState("");
+  const [registrationUntil, setRegistrationUntil] = useState("");
+  const [qrEntryUntil, setQrEntryUntil] = useState("");
+
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  const role = profile?.role;
+  const isAdmin =
+    role === "admin" ||
+    role === "barra" ||
+    role === "cashier" ||
+    role === "cajero";
 
   useEffect(() => {
-    if (event) fetchStats();
-  }, [event]);
+    if (!authLoading && profile && !isAdmin) {
+      router.replace("/dashboard/puntos/home");
+    }
+  }, [authLoading, profile, isAdmin, router]);
 
-  async function fetchStats() {
-    if (!event) return;
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
 
-    const [reg, checkins] = await Promise.all([
-      supabase
-        .from("guest_registrations")
-        .select("id", { count: "exact" })
-        .eq("event_id", event.id),
-      supabase
-        .from("checkins")
-        .select("id, result", { count: "exact" })
-        .eq("event_id", event.id),
-    ]);
+    return () => clearInterval(interval);
+  }, []);
 
-    const goldCount =
-      checkins.data?.filter((c) => c.result === "gold_entry").length || 0;
-    const validCount =
-      checkins.data?.filter((c) => c.result === "valid_entry").length || 0;
-
-    setStats({
-      registered: reg.count || 0,
-      checkedIn: validCount,
-      gold: goldCount,
-    });
-  }
-
-  async function closeRegistrations() {
-    if (!event) return;
-
-    await supabase
-      .from("events")
-      .update({ registration_until: new Date().toISOString() })
-      .eq("id", event.id);
-
-    refetch();
-  }
-
-  async function closeEventWithSnapshot() {
-    if (!event) return;
-
-    setClosingEvent(true);
-    const closedAt = new Date().toISOString();
-
+  async function loadStats(eventId: string) {
     try {
-      const [regRes, checkinRes, rrppRes, rankingRes] = await Promise.all([
+      const [listRes, entryRes] = await Promise.all([
         supabase
-          .from("guest_registrations")
-          .select("id", { count: "exact" })
-          .eq("event_id", event.id),
+          .from("guests")
+          .select("*", { count: "exact", head: true })
+          .eq("event_id", eventId),
+
         supabase
-          .from("checkins")
-          .select("id, result")
-          .eq("event_id", event.id),
-        supabase.from("rrpp_profiles").select("id").eq("active", true),
-        supabase
-          .from("rrpp_ranking")
-          .select("*")
-          .eq("event_id", event.id)
-          .order("position", { ascending: true }),
+          .from("guest_entries")
+          .select("*", { count: "exact", head: true })
+          .eq("event_id", eventId),
       ]);
 
-      const totalGuests = regRes.count || 0;
-      const totalCheckins =
-        checkinRes.data?.filter((c) => c.result === "valid_entry").length || 0;
-      const totalGold =
-        checkinRes.data?.filter((c) => c.result === "gold_entry").length || 0;
-      const totalRrpp = rrppRes.data?.length || 0;
-      const rankingData = rankingRes.data || [];
-      const top3 = rankingData.slice(0, 3);
-
-      await supabase.from("event_snapshots").upsert({
-        event_id: event.id,
-        event_name: event.name,
-        event_date: event.event_date,
-        closed_at: closedAt,
-        total_guests: totalGuests,
-        total_checkins: totalCheckins,
-        total_gold: totalGold,
-        total_rrpp_active: totalRrpp,
-        ranking_json: rankingData,
-        top3_json: top3,
-        summary_json: {
-          stats: {
-            registered: totalGuests,
-            checkins: totalCheckins,
-            gold: totalGold,
-          },
-        },
+      setStats({
+        listCount: listRes.error ? 0 : listRes.count ?? 0,
+        entryCount: entryRes.error ? 0 : entryRes.count ?? 0,
       });
-
-      await supabase
-        .from("events")
-        .update({ status: "closed", closed_at: closedAt })
-        .eq("id", event.id);
-
-      setClosingEvent(false);
-      setClosedSuccess(true);
-      setShowCloseConfirm(false);
-
-      setTimeout(() => {
-        setClosedSuccess(false);
-        refetch();
-      }, 2000);
     } catch (err) {
-      console.error("Error cerrando evento:", err);
-      setClosingEvent(false);
+      console.error("loadStats error:", err);
+      setStats({
+        listCount: 0,
+        entryCount: 0,
+      });
     }
   }
 
-  if (eventLoading) {
+  async function loadActiveEvent() {
+    setLoading(true);
+    setError(null);
+
+    const { data, error } = await supabase
+      .from("events")
+      .select(
+        "id, name, event_date, event_end_at, status, registration_until, qr_entry_until, created_by, created_at, closed_at, show_entry_count, show_list_count"
+      )
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (error) {
+      setError(error.message);
+      setActiveEvent(null);
+      setStats({
+        listCount: 0,
+        entryCount: 0,
+      });
+      setLoading(false);
+      return;
+    }
+
+    setActiveEvent(data ?? null);
+
+    if (data?.id) {
+      await loadStats(data.id);
+    } else {
+      setStats({
+        listCount: 0,
+        entryCount: 0,
+      });
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    if (!authLoading && profile && isAdmin) {
+      void loadActiveEvent();
+    }
+  }, [authLoading, profile, isAdmin]);
+
+  useEffect(() => {
+    if (!activeEvent?.id || !profile || !isAdmin) return;
+
+    const interval = setInterval(() => {
+      void loadStats(activeEvent.id);
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [activeEvent?.id, profile, isAdmin]);
+
+  const progressData = useMemo(() => {
+    if (!activeEvent) {
+      return {
+        percent: null as number | null,
+        label: "Sin evento activo",
+      };
+    }
+
+    return getEventProgress(activeEvent.event_date, activeEvent.event_end_at, now);
+  }, [activeEvent, now]);
+
+  const heroData = useMemo(() => {
+    if (!activeEvent) {
+      return {
+        title: "SIN EVENTO ACTIVO",
+        subtitle: "Creá un evento para activarlo",
+        badge: "ESPERANDO EVENTO",
+        badgeStyle: "border-white/15 bg-white/5 text-white/70",
+        extra1: "Fecha del evento: —",
+        extra2: "Listas hasta: —",
+      };
+    }
+
+    if (activeEvent.status === "closed") {
+      return {
+        title: activeEvent.name,
+        subtitle: "🔴 EVENTO FINALIZADO",
+        badge: "FINALIZADO",
+        badgeStyle: "border-red-400/30 bg-red-400/10 text-red-300",
+        extra1: `Fecha del evento: ${formatDate(activeEvent.event_date)}`,
+        extra2: `Listas hasta: ${formatDate(activeEvent.registration_until)}`,
+      };
+    }
+
+    const eventTs = activeEvent.event_date
+      ? new Date(activeEvent.event_date).getTime()
+      : null;
+
+    const regTs = activeEvent.registration_until
+      ? new Date(activeEvent.registration_until).getTime()
+      : null;
+
+    const endTs = activeEvent.event_end_at
+      ? new Date(activeEvent.event_end_at).getTime()
+      : null;
+
+    if (eventTs && now < eventTs) {
+      const diff = eventTs - now;
+      const countdownText = formatCountdown(diff);
+
+      return {
+        title: activeEvent.name,
+        subtitle:
+          countdownText === "🔥 POR COMENZAR"
+            ? "🔥 POR COMENZAR"
+            : `⏳ INICIA EN ${countdownText}`,
+        badge: regTs && now < regTs ? "LISTAS ABIERTAS" : "LISTAS CERRADAS",
+        badgeStyle:
+          regTs && now < regTs
+            ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+            : "border-amber-400/30 bg-amber-400/10 text-amber-300",
+        extra1: `Fecha del evento: ${formatDate(activeEvent.event_date)}`,
+        extra2: `Listas hasta: ${formatDate(activeEvent.registration_until)}`,
+      };
+    }
+
+    if (endTs && now > endTs) {
+      return {
+        title: activeEvent.name,
+        subtitle: "🔴 EVENTO FINALIZADO",
+        badge: "FINALIZADO",
+        badgeStyle: "border-red-400/30 bg-red-400/10 text-red-300",
+        extra1: `Fecha del evento: ${formatDate(activeEvent.event_date)}`,
+        extra2: `Listas hasta: ${formatDate(activeEvent.registration_until)}`,
+      };
+    }
+
+    if (regTs && now < regTs) {
+      return {
+        title: activeEvent.name,
+        subtitle: "EN VIVO",
+        badge: "LISTAS ABIERTAS",
+        badgeStyle:
+          "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+        extra1: `Fecha del evento: ${formatDate(activeEvent.event_date)}`,
+        extra2: `Listas hasta: ${formatDate(activeEvent.registration_until)}`,
+      };
+    }
+
+    return {
+      title: activeEvent.name,
+      subtitle: "EN VIVO",
+      badge: "LISTAS CERRADAS",
+      badgeStyle: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+      extra1: `Fecha del evento: ${formatDate(activeEvent.event_date)}`,
+      extra2: `Listas hasta: ${formatDate(activeEvent.registration_until)}`,
+    };
+  }, [activeEvent, now]);
+
+  async function toggleEventVisibility(field: "show_entry_count" | "show_list_count") {
+    if (!activeEvent) return;
+
+    setUpdatingVisibility(true);
+    setMessage(null);
+    setError(null);
+
+    const nextValue = !activeEvent[field];
+
+    const { error } = await supabase
+      .from("events")
+      .update({ [field]: nextValue })
+      .eq("id", activeEvent.id);
+
+    if (error) {
+      setError(error.message);
+      setUpdatingVisibility(false);
+      return;
+    }
+
+    setActiveEvent((prev) =>
+      prev
+        ? {
+            ...prev,
+            [field]: nextValue,
+          }
+        : prev
+    );
+
+    setMessage(
+      field === "show_entry_count"
+        ? nextValue
+          ? "Ahora los clientes pueden ver los ingresos."
+          : "Los ingresos quedaron ocultos para clientes."
+        : nextValue
+          ? "Ahora los clientes pueden ver la cantidad en lista."
+          : "La cantidad en lista quedó oculta para clientes."
+    );
+
+    setUpdatingVisibility(false);
+  }
+
+  async function handleCreateEvent(e: React.FormEvent) {
+    e.preventDefault();
+
+    setSaving(true);
+    setMessage(null);
+    setError(null);
+
+    if (!name.trim()) {
+      setError("Poné un nombre para el evento.");
+      setSaving(false);
+      return;
+    }
+
+    if (!eventDate) {
+      setError("Completá la fecha del evento.");
+      setSaving(false);
+      return;
+    }
+
+    if (activeEvent) {
+      setError("Ya hay un evento activo. Cerralo antes de crear otro.");
+      setSaving(false);
+      return;
+    }
+
+    const payload = {
+      name: name.trim(),
+      event_date: new Date(eventDate).toISOString(),
+      event_end_at: eventEndAt ? new Date(eventEndAt).toISOString() : null,
+      status: "active",
+      registration_until: registrationUntil
+        ? new Date(registrationUntil).toISOString()
+        : new Date(eventDate).toISOString(),
+      qr_entry_until: qrEntryUntil
+        ? new Date(qrEntryUntil).toISOString()
+        : new Date(eventDate).toISOString(),
+      show_entry_count: false,
+      show_list_count: false,
+    };
+
+    const { error } = await supabase.from("events").insert(payload);
+
+    if (error) {
+      setError(error.message);
+      setSaving(false);
+      return;
+    }
+
+    setMessage("Evento creado y activado correctamente.");
+    setName("");
+    setEventDate("");
+    setEventEndAt("");
+    setRegistrationUntil("");
+    setQrEntryUntil("");
+
+    await loadActiveEvent();
+    setSaving(false);
+  }
+
+  async function handleCloseEvent() {
+    if (!activeEvent) return;
+
+    setClosingEvent(true);
+    setMessage(null);
+    setError(null);
+
+    const { error } = await supabase
+      .from("events")
+      .update({
+        status: "closed",
+        closed_at: new Date().toISOString(),
+      })
+      .eq("id", activeEvent.id);
+
+    if (error) {
+      setError(error.message);
+      setClosingEvent(false);
+      return;
+    }
+
+    setMessage("Evento cerrado correctamente.");
+    await loadActiveEvent();
+    setClosingEvent(false);
+  }
+
+  async function handleCloseLists() {
+    if (!activeEvent) return;
+
+    setClosingLists(true);
+    setMessage(null);
+    setError(null);
+
+    const nowIso = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("events")
+      .update({ registration_until: nowIso })
+      .eq("id", activeEvent.id);
+
+    if (error) {
+      setError(error.message);
+      setClosingLists(false);
+      return;
+    }
+
+    setMessage("Registro de listas cerrado.");
+    await loadActiveEvent();
+    setClosingLists(false);
+  }
+
+  if (authLoading || !profile) {
     return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="w-8 h-8 border-2 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin" />
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <div className="w-8 h-8 border-2 border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin" />
       </div>
     );
   }
 
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
-    <div className="px-4 py-6 space-y-6 animate-fade-in max-w-lg mx-auto">
-      <div>
-        <h1 className="font-display text-2xl font-black tracking-widest text-white">
-          DASHBOARD
-        </h1>
-        <p className="text-text-muted text-sm mt-1">Panel de administración</p>
-      </div>
+    <main className="min-h-screen bg-neutral-950 px-4 py-6 text-white">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <section className="relative overflow-hidden rounded-[32px] border border-fuchsia-500/20 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.22),transparent_28%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.18),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-6 shadow-[0_0_60px_rgba(168,85,247,0.10)] sm:p-8">
+          <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.15))]" />
 
-      {event ? (
-        <div className="holy-card border-accent-purple/30 bg-gradient-card">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                <span className="text-xs text-success uppercase tracking-widest font-semibold">
-                  Evento activo
-                </span>
+          <div className="relative flex items-start justify-between gap-6">
+            <div className="max-w-4xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-fuchsia-300">
+                <Sparkles className="h-3.5 w-3.5" />
+                Evento activo
               </div>
-              <h2 className="font-display text-lg font-bold text-white">
-                {event.name}
-              </h2>
-              <p className="text-text-muted text-sm">
-                {formatDate(event.event_date)}
-              </p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-background/50 rounded-xl p-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Clock className="w-3.5 h-3.5 text-accent-purple" />
-                <span className="text-xs text-text-muted uppercase tracking-wider">
-                  Registro hasta
-                </span>
+              <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-5xl">
+                {heroData.title}
+              </h1>
+
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-lg font-semibold text-white/90 sm:text-2xl">
+                {loading ? (
+                  <span>Cargando...</span>
+                ) : heroData.subtitle === "EN VIVO" ? (
+                  <div className="flex items-center gap-3 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-emerald-300">
+                    <span className="relative flex h-3 w-3">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
+                    </span>
+                    <span>🟢 EN VIVO</span>
+                  </div>
+                ) : (
+                  <span>{heroData.subtitle}</span>
+                )}
               </div>
-              <p className="font-display text-xl font-bold text-white">
-                {formatTime(event.registration_until)}
-              </p>
-            </div>
 
-            <div className="bg-background/50 rounded-xl p-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <QrCode className="w-3.5 h-3.5 text-accent-pink" />
-                <span className="text-xs text-text-muted uppercase tracking-wider">
-                  QR hasta
-                </span>
-              </div>
-              <p className="font-display text-xl font-bold text-white">
-                {formatTime(event.qr_entry_until)}
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="holy-card text-center py-8">
-          <div className="text-text-muted mb-4">
-            <QrCode className="w-12 h-12 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No hay evento activo</p>
-          </div>
-          <button
-            onClick={() => setShowCreateEvent(true)}
-            className="holy-btn-primary"
-          >
-            + CREAR EVENTO
-          </button>
-        </div>
-      )}
-
-      {event && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="stat-card">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Users className="w-4 h-4 text-accent-purple" />
-              <span className="stat-label">Anotados</span>
-            </div>
-            <span className="stat-value">{stats.registered}</span>
-          </div>
-
-          <div className="stat-card">
-            <div className="flex items-center gap-1.5 mb-1">
-              <LogIn className="w-4 h-4 text-success" />
-              <span className="stat-label">Ingresos</span>
-            </div>
-            <span className="stat-value text-success">{stats.checkedIn}</span>
-          </div>
-
-          <div className="stat-card">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Crown className="w-4 h-4 text-gold" />
-              <span className="stat-label">Gold</span>
-            </div>
-            <span className="stat-value text-gold">{stats.gold}</span>
-          </div>
-        </div>
-      )}
-
-      {event && ranking.length > 0 && (
-        <div className="holy-card">
-          <h3 className="font-display text-xs font-bold tracking-widest text-text-muted uppercase mb-3 flex items-center gap-2">
-            <Star className="w-3.5 h-3.5 text-accent-purple" />
-            Ranking Noche
-          </h3>
-
-          <div className="space-y-2">
-            {ranking.slice(0, 5).map((r, i) => (
               <div
-                key={r.rrpp_id}
-                className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${
-                  i === 0
-                    ? "bg-accent-purple/10 border border-accent-purple/20"
-                    : "bg-background/50"
-                }`}
+                className={`mt-5 inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold ${heroData.badgeStyle}`}
               >
-                <div className="flex items-center gap-3">
-                  <span className="font-display text-sm font-bold text-accent-purple w-6">
-                    #{r.position}
-                  </span>
-                  <span className="text-sm font-semibold text-text-primary">
-                    {r.display_name}
-                  </span>
+                {heroData.badge}
+              </div>
+
+              <div className="mt-6 grid gap-3 text-sm text-white/70 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                  {heroData.extra1}
                 </div>
 
-                <span className="font-display text-sm font-bold text-white">
-                  {r.checkin_count}
-                </span>
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                  {heroData.extra2}
+                </div>
+
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-wide text-white/40">
+                      Ingresos
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleEventVisibility("show_entry_count")}
+                      disabled={!activeEvent || updatingVisibility}
+                      className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-semibold text-white/70 transition hover:bg-white/10 disabled:opacity-50"
+                    >
+                      {activeEvent?.show_entry_count ? (
+                        <>
+                          <Eye className="h-3.5 w-3.5" />
+                          Visible
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="h-3.5 w-3.5" />
+                          Oculto
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <p className="mt-2 text-lg font-extrabold text-cyan-300">
+                    👥 {stats.entryCount}
+                  </p>
+
+                  <p className="mt-1 text-xs text-white/45">
+                    Cliente: {activeEvent?.show_entry_count ? "lo ve" : "no lo ve"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/5 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-wide text-white/40">
+                      En lista
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleEventVisibility("show_list_count")}
+                      disabled={!activeEvent || updatingVisibility}
+                      className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-semibold text-white/70 transition hover:bg-white/10 disabled:opacity-50"
+                    >
+                      {activeEvent?.show_list_count ? (
+                        <>
+                          <Eye className="h-3.5 w-3.5" />
+                          Visible
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="h-3.5 w-3.5" />
+                          Oculto
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <p className="mt-2 text-lg font-extrabold text-fuchsia-300">
+                    📝 {stats.listCount}
+                  </p>
+
+                  <p className="mt-1 text-xs text-white/45">
+                    Cliente: {activeEvent?.show_list_count ? "lo ve" : "no lo ve"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-violet-400/20 bg-violet-400/5 px-4 py-3 sm:col-span-2 lg:col-span-4">
+                  <div className="mb-2 flex items-center justify-between gap-4">
+                    <p className="text-xs uppercase tracking-wide text-white/40">
+                      Barra de progreso del evento
+                    </p>
+                    <p className="text-xs font-semibold text-violet-300">
+                      {progressData.label}
+                    </p>
+                  </div>
+
+                  <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-violet-400 to-cyan-400 transition-all duration-700"
+                      style={{
+                        width:
+                          progressData.percent === null
+                            ? "0%"
+                            : `${progressData.percent}%`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-xs text-white/45">
+                    <span>Inicio: {formatDate(activeEvent?.event_date)}</span>
+                    <span>Fin: {formatDate(activeEvent?.event_end_at)}</span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 sm:col-span-2 lg:col-span-4">
+                  QR entrada hasta:{" "}
+                  <span className="font-semibold text-white/90">
+                    {activeEvent?.qr_entry_until
+                      ? formatDate(activeEvent.qr_entry_until)
+                      : "—"}
+                  </span>
+                </div>
               </div>
-            ))}
+            </div>
+
+            <div className="hidden lg:flex h-20 w-20 shrink-0 items-center justify-center rounded-[28px] border border-fuchsia-400/20 bg-black/20 text-fuchsia-300">
+              <Zap className="h-10 w-10" />
+            </div>
           </div>
-        </div>
-      )}
+        </section>
 
-      {event && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setShowGoldQr(true)}
-              className="holy-btn-secondary text-gold border-gold/30 hover:border-gold"
-            >
-              ✦ QR GOLD
-            </button>
-
-            <button
-              onClick={() => setShowPromoQr(true)}
-              className="holy-btn-secondary"
-            >
-              📢 QR PROMO
-            </button>
+        {message ? (
+          <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+            <CheckCircle2 className="h-4 w-4" />
+            {message}
           </div>
+        ) : null}
 
-          <button
-            onClick={closeRegistrations}
-            className="holy-btn-secondary"
-          >
-            🔒 CERRAR REGISTROS
-          </button>
+        {error ? (
+          <div className="flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            <AlertCircle className="h-4 w-4" />
+            {error}
+          </div>
+        ) : null}
 
-          <button
-            onClick={() => router.push("/dashboard/history")}
-            className="holy-btn-secondary flex items-center justify-center gap-2"
-          >
-            <History className="w-4 h-4" />
-            HISTORIAL DE NOCHES
-          </button>
+        <section className="grid gap-6 lg:grid-cols-2">
+          <SectionCard className="p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-fuchsia-300">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">Evento activo</h2>
+            </div>
 
-          <button
-            onClick={() => setShowCloseConfirm(true)}
-            className="holy-btn-danger"
-          >
-            ✕ CERRAR EVENTO
-          </button>
-        </div>
-      )}
+            {loading ? (
+              <p className="text-sm text-white/60">Cargando evento...</p>
+            ) : activeEvent ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-xs uppercase tracking-wide text-white/40">
+                    Nombre
+                  </p>
+                  <p className="mt-1 text-xl font-extrabold text-white">
+                    {activeEvent.name}
+                  </p>
+                </div>
 
-      {!event && (
-        <button
-          onClick={() => setShowCreateEvent(true)}
-          className="holy-btn-primary"
-        >
-          + CREAR EVENTO
-        </button>
-      )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/40">
+                      Fecha del evento
+                    </p>
+                    <p className="mt-1 text-sm text-white/80">
+                      {formatDate(activeEvent.event_date)}
+                    </p>
+                  </div>
 
-      {showCreateEvent && (
-        <CreateEventModal
-          profile={profile}
-          onClose={() => setShowCreateEvent(false)}
-          onCreated={() => {
-            setShowCreateEvent(false);
-            refetch();
-          }}
-        />
-      )}
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/40">
+                      Hora de fin
+                    </p>
+                    <p className="mt-1 text-sm text-white/80">
+                      {formatDate(activeEvent.event_end_at)}
+                    </p>
+                  </div>
 
-      {showGoldQr && event && (
-        <CreateGoldQrModal
-          eventId={event.id}
-          profileId={profile?.id || ""}
-          onClose={() => setShowGoldQr(false)}
-        />
-      )}
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/40">
+                      Listas abiertas hasta
+                    </p>
+                    <p className="mt-1 text-sm text-white/80">
+                      {formatDate(activeEvent.registration_until)}
+                    </p>
+                  </div>
 
-      {showCloseConfirm && (
-        <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-end">
-          <div className="w-full max-w-lg mx-auto bg-card border border-border rounded-t-3xl p-6 animate-slide-up">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-lg font-bold tracking-widest text-danger">
-                ✕ CERRAR EVENTO
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/40">
+                      QR entrada válido hasta
+                    </p>
+                    <p className="mt-1 text-sm text-white/80">
+                      {formatDate(activeEvent.qr_entry_until)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 pt-2">
+                  <button
+                    onClick={handleCloseLists}
+                    disabled={closingLists}
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-50"
+                  >
+                    <Lock className="h-4 w-4" />
+                    {closingLists
+                      ? "Cerrando listas..."
+                      : "Cerrar registro de listas"}
+                  </button>
+
+                  <button
+                    onClick={handleCloseEvent}
+                    disabled={closingEvent}
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                  >
+                    <Clock3 className="h-4 w-4" />
+                    {closingEvent ? "Cerrando evento..." : "Cerrar evento"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-white/60">
+                No hay evento activo.
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard className="p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-fuchsia-300">
+                <PlusCircle className="h-5 w-5" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">Crear evento</h2>
+            </div>
+
+            <form onSubmit={handleCreateEvent} className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm text-white/70">
+                  Nombre del evento
+                </label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Ej: HOLY NIGHT"
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 outline-none transition focus:border-fuchsia-500 focus:bg-black/40"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm text-white/70">
+                  Fecha y hora de inicio
+                </label>
+                <input
+                  type="datetime-local"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 outline-none transition focus:border-fuchsia-500 focus:bg-black/40"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm text-white/70">
+                  Fecha y hora de fin
+                </label>
+                <input
+                  type="datetime-local"
+                  value={eventEndAt}
+                  onChange={(e) => setEventEndAt(e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 outline-none transition focus:border-fuchsia-500 focus:bg-black/40"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm text-white/70">
+                  Registro de listas hasta
+                </label>
+                <input
+                  type="datetime-local"
+                  value={registrationUntil}
+                  onChange={(e) => setRegistrationUntil(e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 outline-none transition focus:border-fuchsia-500 focus:bg-black/40"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm text-white/70">
+                  QR entrada válido hasta
+                </label>
+                <input
+                  type="datetime-local"
+                  value={qrEntryUntil}
+                  onChange={(e) => setQrEntryUntil(e.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 outline-none transition focus:border-fuchsia-500 focus:bg-black/40"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full rounded-2xl bg-fuchsia-600 px-4 py-3 font-semibold text-white transition hover:bg-fuchsia-500 disabled:opacity-50 shadow-[0_0_20px_rgba(217,70,239,0.22)]"
+              >
+                {saving ? "Creando evento..." : "Crear evento"}
+              </button>
+            </form>
+          </SectionCard>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-2">
+          <SectionCard className="p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-fuchsia-300">
+                <Shield className="h-5 w-5" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">
+                Herramientas admin
               </h2>
-              <button
-                onClick={() => setShowCloseConfirm(false)}
-                className="p-2 rounded-lg bg-background text-text-muted"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
-            <p className="text-text-muted text-sm mb-6">
-              ¿Seguro que querés cerrar este evento? Se guardará el resumen final
-              de la noche y dejará de figurar como evento activo.
-            </p>
+            <div className="grid gap-3">
+              <QuickLink
+                href="/dashboard/scanner"
+                icon={ScanLine}
+                title="Scanner QR"
+                subtitle="Escanear ingresos"
+                iconClassName="text-yellow-300"
+              />
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCloseConfirm(false)}
-                className="holy-btn-secondary flex-1"
-              >
-                Cancelar
-              </button>
+              <QuickLink
+                href="/dashboard/ranking"
+                icon={Trophy}
+                title="Ranking RRPP"
+                subtitle="Ver ranking de promotores"
+                iconClassName="text-amber-300"
+              />
 
-              <button
-                onClick={closeEventWithSnapshot}
-                disabled={closingEvent}
-                className="holy-btn-danger flex-1"
-              >
-                {closingEvent ? "Cerrando..." : "Confirmar cierre"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <QuickLink
+                href="/dashboard/rrpp-panel"
+                icon={Users}
+                title="Vista RRPP"
+                subtitle="Panel de RRPP"
+                iconClassName="text-cyan-300"
+              />
 
-      {closedSuccess && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-success/20 border border-success/40 rounded-2xl px-6 py-3 flex items-center gap-2">
-          <CheckCircle className="w-5 h-5 text-success" />
-          <span className="text-success text-sm font-semibold">
-            Evento cerrado correctamente
-          </span>
-        </div>
-      )}
+              <QuickLink
+                href="/dashboard/gold"
+                icon={Crown}
+                title="QR Gold"
+                subtitle="Accesos especiales"
+                iconClassName="text-orange-300"
+              />
 
-      {showPromoQr && (
-        <CreatePromoQrModal
-          profileId={profile?.id || ""}
-          onClose={() => setShowPromoQr(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-function CreateEventModal({
-  profile,
-  onClose,
-  onCreated,
-}: {
-  profile: Profile | null;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const supabase = createClient();
-  const [form, setForm] = useState({
-    name: "",
-    event_date: new Date().toISOString().split("T")[0],
-    registration_until_time: "01:30",
-    qr_entry_until_time: "02:30",
-  });
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!profile) return;
-
-    setLoading(true);
-
-    const dateBase = form.event_date;
-    const regUntil = new Date(
-      `${dateBase}T${form.registration_until_time}:00-03:00`
-    );
-    const qrUntil = new Date(
-      `${dateBase}T${form.qr_entry_until_time}:00-03:00`
-    );
-
-    if (form.registration_until_time < "12:00") {
-      regUntil.setDate(regUntil.getDate() + 1);
-    }
-    if (form.qr_entry_until_time < "12:00") {
-      qrUntil.setDate(qrUntil.getDate() + 1);
-    }
-
-    await supabase.from("events").insert({
-      name: form.name,
-      event_date: form.event_date,
-      status: "active",
-      registration_until: regUntil.toISOString(),
-      qr_entry_until: qrUntil.toISOString(),
-      created_by: profile.id,
-    });
-
-    const { data: rrpps } = await supabase
-      .from("rrpp_profiles")
-      .select("id")
-      .eq("active", true);
-
-    if (rrpps) {
-      const { data: eventData } = await supabase
-        .from("events")
-        .select("id")
-        .eq("status", "active")
-        .single();
-
-      if (eventData) {
-        const benefits = rrpps.map((r) => ({
-          event_id: eventData.id,
-          rrpp_id: r.id,
-          benefit_type: "vaso_litro",
-          title: "VASO LITRO",
-          status: "issued",
-          issued_at: new Date().toISOString(),
-        }));
-
-        await supabase.from("rrpp_event_benefits").insert(benefits);
-
-        const rewards = rrpps.map((r) => ({
-          event_id: eventData.id,
-          rrpp_id: r.id,
-          reward_type: "bottle",
-          title: "Botella de Champagne",
-          trigger_count: 35,
-          status: "locked",
-        }));
-
-        await supabase.from("rrpp_event_rewards").insert(rewards);
-      }
-    }
-
-    setLoading(false);
-    onCreated();
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-end">
-      <div className="w-full max-w-lg mx-auto bg-card border border-border rounded-t-3xl p-6 animate-slide-up">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display text-lg font-bold tracking-widest">
-            NUEVO EVENTO
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg bg-background text-text-muted"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="holy-label">Nombre del Evento</label>
-            <input
-              className="holy-input"
-              placeholder="Viernes Eléctrico"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="holy-label">Fecha</label>
-            <input
-              type="date"
-              className="holy-input"
-              value={form.event_date}
-              onChange={(e) => setForm({ ...form, event_date: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="holy-label">Registro hasta</label>
-              <input
-                type="time"
-                className="holy-input"
-                value={form.registration_until_time}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    registration_until_time: e.target.value,
-                  })
-                }
-                required
+              <QuickLink
+                href="/dashboard/admin/puntos"
+                icon={QrCode}
+                title="Administrar créditos"
+                subtitle="Sumar y revisar puntos"
+                iconClassName="text-fuchsia-300"
               />
             </div>
+          </SectionCard>
 
-            <div>
-              <label className="holy-label">QR hasta</label>
-              <input
-                type="time"
-                className="holy-input"
-                value={form.qr_entry_until_time}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    qr_entry_until_time: e.target.value,
-                  })
-                }
-                required
+          <SectionCard className="p-6">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-violet-300">
+                <Home className="h-5 w-5" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">
+                Vistas cliente
+              </h2>
+            </div>
+
+            <div className="grid gap-3">
+              <QuickLink
+                href="/dashboard/puntos/home"
+                icon={Home}
+                title="Cliente · HOME"
+                subtitle="Vista principal del cliente"
+                iconClassName="text-violet-300"
+              />
+
+              <QuickLink
+                href="/dashboard/puntos"
+                icon={Gift}
+                title="Cliente · CANJEA"
+                subtitle="Canjes y recompensas"
+                iconClassName="text-fuchsia-300"
+              />
+
+              <QuickLink
+                href="/dashboard/puntos/movimientos"
+                icon={ArrowLeftRight}
+                title="Cliente · MOVIMIENTOS"
+                subtitle="Historial de sumas y canjes"
+                iconClassName="text-sky-300"
+              />
+
+              <QuickLink
+                href="/dashboard/puntos/beneficios"
+                icon={Sparkles}
+                title="Cliente · BENEFICIOS"
+                subtitle="Ventajas y perks"
+                iconClassName="text-emerald-300"
               />
             </div>
-          </div>
-
-          <button type="submit" disabled={loading} className="holy-btn-primary">
-            {loading ? "Creando..." : "CREAR EVENTO"}
-          </button>
-        </form>
+          </SectionCard>
+        </section>
       </div>
-    </div>
-  );
-}
-
-function CreateGoldQrModal({
-  eventId,
-  profileId,
-  onClose,
-}: {
-  eventId: string;
-  profileId: string;
-  onClose: () => void;
-}) {
-  const supabase = createClient();
-  const [title, setTitle] = useState("GOLD ENTRY");
-  const [maxUses, setMaxUses] = useState(10);
-  const [loading, setLoading] = useState(false);
-  const [created, setCreated] = useState<string | null>(null);
-
-  async function handleCreate() {
-    setLoading(true);
-
-    const token = generateQrToken();
-
-    await supabase.from("gold_qrs").insert({
-      event_id: eventId,
-      title,
-      qr_token: token,
-      max_uses: maxUses,
-      created_by: profileId,
-      valid_until: null,
-    });
-
-    setCreated(token);
-    setLoading(false);
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-end">
-      <div className="w-full max-w-lg mx-auto bg-card border border-border rounded-t-3xl p-6 animate-slide-up">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display text-lg font-bold tracking-widest text-gold">
-            ✦ QR GOLD
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg bg-background text-text-muted"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {!created ? (
-          <div className="space-y-4">
-            <div>
-              <label className="holy-label">Título</label>
-              <input
-                className="holy-input"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="holy-label">Usos máximos</label>
-              <input
-                type="number"
-                className="holy-input"
-                value={maxUses}
-                onChange={(e) => setMaxUses(Number(e.target.value))}
-                min={1}
-              />
-            </div>
-
-            <button
-              onClick={handleCreate}
-              disabled={loading}
-              className="holy-btn-primary text-black"
-            >
-              {loading ? "Generando..." : "GENERAR QR GOLD"}
-            </button>
-          </div>
-        ) : (
-          <div className="text-center space-y-4">
-            <div className="bg-gold/10 border border-gold/30 rounded-2xl p-4">
-              <p className="font-display text-gold font-bold tracking-widest text-sm mb-2">
-                {title}
-              </p>
-              <p className="font-mono text-xs text-text-muted break-all">
-                {created}
-              </p>
-            </div>
-
-            <p className="text-text-muted text-sm">QR generado exitosamente</p>
-
-            <button onClick={onClose} className="holy-btn-secondary">
-              CERRAR
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CreatePromoQrModal({
-  profileId,
-  onClose,
-}: {
-  profileId: string;
-  onClose: () => void;
-}) {
-  const supabase = createClient();
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    maxUses: 100,
-  });
-  const [loading, setLoading] = useState(false);
-  const [created, setCreated] = useState<string | null>(null);
-
-  async function handleCreate() {
-    setLoading(true);
-
-    const token = generateQrToken();
-
-    await supabase.from("promo_qrs").insert({
-      title: form.title,
-      description: form.description,
-      qr_token: token,
-      max_uses: form.maxUses,
-      created_by: profileId,
-    });
-
-    setCreated(token);
-    setLoading(false);
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-end">
-      <div className="w-full max-w-lg mx-auto bg-card border border-border rounded-t-3xl p-6 animate-slide-up">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display text-lg font-bold tracking-widest">
-            📢 QR PROMO
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg bg-background text-text-muted"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {!created ? (
-          <div className="space-y-4">
-            <div>
-              <label className="holy-label">Título</label>
-              <input
-                className="holy-input"
-                placeholder="Shot gratis"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="holy-label">Descripción</label>
-              <input
-                className="holy-input"
-                placeholder="Válido esta noche"
-                value={form.description}
-                onChange={(e) =>
-                  setForm({ ...form, description: e.target.value })
-                }
-              />
-            </div>
-
-            <div>
-              <label className="holy-label">Usos máximos</label>
-              <input
-                type="number"
-                className="holy-input"
-                value={form.maxUses}
-                onChange={(e) =>
-                  setForm({ ...form, maxUses: Number(e.target.value) })
-                }
-                min={1}
-              />
-            </div>
-
-            <button
-              onClick={handleCreate}
-              disabled={loading}
-              className="holy-btn-primary"
-            >
-              {loading ? "Generando..." : "GENERAR QR PROMO"}
-            </button>
-          </div>
-        ) : (
-          <div className="text-center space-y-4">
-            <div className="bg-accent-purple/10 border border-accent-purple/30 rounded-2xl p-4">
-              <p className="font-display text-accent-purple font-bold tracking-widest text-sm mb-2">
-                {form.title}
-              </p>
-              <p className="font-mono text-xs text-text-muted break-all">
-                {created}
-              </p>
-            </div>
-
-            <p className="text-text-muted text-sm">QR promo generado</p>
-
-            <button onClick={onClose} className="holy-btn-secondary">
-              CERRAR
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+    </main>
   );
 }

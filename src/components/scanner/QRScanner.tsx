@@ -3,70 +3,164 @@
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
-interface QRScannerProps {
-  onScan: (token: string) => void;
-  active?: boolean;
+interface Props {
+  onScan: (qr: string) => void;
+  paused?: boolean;
 }
 
-export function QRScanner({ onScan, active = true }: QRScannerProps) {
+export default function QRScanner({ onScan, paused = false }: Props) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [started, setStarted] = useState(false);
-  const containerId = "qr-reader";
+  const mountedRef = useRef(false);
+  const isStartingRef = useRef(false);
+  const isRunningRef = useRef(false);
+  const lastScanRef = useRef<string | null>(null);
+  const lastScanTimeRef = useRef(0);
+
+  const [scanning, setScanning] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!active) return;
+    mountedRef.current = true;
+    const scannerId = "qr-reader";
 
-    const scanner = new Html5Qrcode(containerId);
-    scannerRef.current = scanner;
+    const stopScanner = async () => {
+      const scanner = scannerRef.current;
+      if (!scanner) return;
 
-    scanner
-      .start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
-        (decodedText) => {
-          onScan(decodedText);
-        },
-        undefined
-      )
-      .then(() => setStarted(true))
-      .catch((err) => {
-        setError("No se pudo acceder a la cámara. Verificar permisos.");
-        console.error(err);
-      });
+      try {
+        if (isRunningRef.current) {
+          await scanner.stop();
+        }
+      } catch {}
 
-    return () => {
-      if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().catch(console.error);
+      try {
+        await scanner.clear();
+      } catch {}
+
+      scannerRef.current = null;
+      isRunningRef.current = false;
+
+      if (mountedRef.current) {
+        setScanning(false);
       }
     };
-  }, [active]);
+
+    const handleDecoded = (decodedText: string) => {
+      const clean = decodedText.trim();
+      const now = Date.now();
+
+      if (
+        lastScanRef.current === clean &&
+        now - lastScanTimeRef.current < 1800
+      ) {
+        return;
+      }
+
+      lastScanRef.current = clean;
+      lastScanTimeRef.current = now;
+
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate(120);
+      }
+
+      onScan(clean);
+    };
+
+    const startScanner = async () => {
+      if (paused) {
+        await stopScanner();
+        return;
+      }
+
+      if (isStartingRef.current || isRunningRef.current) return;
+
+      isStartingRef.current = true;
+
+      try {
+        setErrorMsg(null);
+        await stopScanner();
+
+        const scanner = new Html5Qrcode(scannerId);
+        scannerRef.current = scanner;
+
+        const qrSize =
+          typeof window !== "undefined"
+            ? Math.min(280, Math.floor(window.innerWidth * 0.72))
+            : 250;
+
+        try {
+          await scanner.start(
+            { facingMode: { ideal: "environment" } },
+            {
+              fps: 12,
+              qrbox: { width: qrSize, height: qrSize },
+              aspectRatio: 1,
+            },
+            handleDecoded,
+            () => {}
+          );
+        } catch {
+          await scanner.start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: { width: qrSize, height: qrSize },
+              aspectRatio: 1,
+            },
+            handleDecoded,
+            () => {}
+          );
+        }
+
+        isRunningRef.current = true;
+
+        if (mountedRef.current) {
+          setScanning(true);
+        }
+      } catch (err) {
+        console.error("Error iniciando cámara", err);
+        isRunningRef.current = false;
+
+        if (mountedRef.current) {
+          setScanning(false);
+          setErrorMsg(
+            "No se pudo abrir la cámara. Revisá permisos del navegador."
+          );
+        }
+      } finally {
+        isStartingRef.current = false;
+      }
+    };
+
+    void startScanner();
+
+    return () => {
+      mountedRef.current = false;
+      void stopScanner();
+    };
+  }, [paused, onScan]);
 
   return (
-    <div className="relative w-full aspect-square max-w-xs mx-auto rounded-2xl overflow-hidden bg-black">
-      {/* Camera feed */}
-      <div id={containerId} className="w-full h-full" />
+    <div className="w-full flex flex-col items-center justify-center gap-3">
+      <div
+        id="qr-reader"
+        style={{
+          width: "100%",
+          maxWidth: "420px",
+        }}
+      />
 
-      {/* Overlay corners */}
-      {started && (
-        <div className="scanner-overlay pointer-events-none">
-          <div className="scanner-corner scanner-corner-tl" />
-          <div className="scanner-corner scanner-corner-tr" />
-          <div className="scanner-corner scanner-corner-bl" />
-          <div className="scanner-corner scanner-corner-br" />
-          {/* Scan line */}
-          <div className="absolute left-2 right-2 h-0.5 bg-accent-purple/70 scan-line shadow-purple-sm" />
-        </div>
-      )}
+      <div className="text-sm text-white/70 text-center">
+        {paused
+          ? "Scanner pausado"
+          : scanning
+          ? "Cámara activa"
+          : "Iniciando cámara..."}
+      </div>
 
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background p-4">
-          <div className="text-center">
-            <p className="text-danger text-sm mb-2">⚠️ {error}</p>
-            <p className="text-text-muted text-xs">
-              Permitir acceso a la cámara e intentar de nuevo
-            </p>
-          </div>
+      {errorMsg && (
+        <div className="text-xs text-red-400 text-center max-w-sm">
+          {errorMsg}
         </div>
       )}
     </div>

@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useRef } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types";
 
@@ -19,62 +26,107 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const initialized = useRef(false);
+  const mountedRef = useRef(false);
 
-  useEffect(() => {
-    // StrictMode monta dos veces — solo inicializar una vez
-    if (initialized.current) return;
-    initialized.current = true;
-
+  const loadProfile = useCallback(async (email?: string | null) => {
     const supabase = getSupabaseClient();
-    console.log("[AUTH_PROVIDER_INIT]");
 
-    async function fetchProfile(email: string): Promise<Profile | null> {
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("email", email)
-        .single();
-      return data ?? null;
-    }
-
-    // Cargar sesión inicial
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      console.log("[SESSION_LOADED]", session?.user?.email ?? "no session");
-      if (session?.user?.email) {
-        const p = await fetchProfile(session.user.email);
-        setProfile(p);
-      }
-      setLoading(false);
-    });
-
-    // Una sola suscripción en toda la app
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("[AUTH_STATE_CHANGED]", event, session?.user?.email ?? "no user");
-
-      if (event === "SIGNED_OUT") {
-        setProfile(null);
-        setLoading(false);
+    try {
+      if (!email) {
+        if (mountedRef.current) {
+          setProfile(null);
+          setLoading(false);
+        }
         return;
       }
 
-      if (session?.user?.email) {
-        const p = await fetchProfile(session.user.email);
-        setProfile(p);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[PROFILE_LOAD_ERROR]", error);
+        if (mountedRef.current) {
+          setProfile(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (mountedRef.current) {
+        setProfile(data ?? null);
         setLoading(false);
       }
+    } catch (err) {
+      console.error("[PROFILE_LOAD_UNEXPECTED_ERROR]", err);
+      if (mountedRef.current) {
+        setProfile(null);
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    mountedRef.current = true;
+
+    const loadSession = async () => {
+      try {
+        setLoading(true);
+
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error("[SESSION_LOAD_ERROR]", error);
+          if (mountedRef.current) {
+            setProfile(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        await loadProfile(session?.user?.email ?? null);
+      } catch (err) {
+        console.error("[SESSION_LOAD_UNEXPECTED_ERROR]", err);
+        if (mountedRef.current) {
+          setProfile(null);
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mountedRef.current) return;
+      void loadProfile(session?.user?.email ?? null);
     });
 
     return () => {
+      mountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadProfile]);
 
   async function signOut() {
     const supabase = getSupabaseClient();
-    console.log("[LOGOUT_SUCCESS]");
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("[SIGNOUT_ERROR]", err);
+    } finally {
+      setProfile(null);
+      setLoading(false);
+      window.location.href = "/login";
+    }
   }
 
   return (

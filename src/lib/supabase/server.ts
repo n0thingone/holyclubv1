@@ -1,12 +1,5 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-
-type CookieToSet = {
-  name: string;
-  value: string;
-  options?: CookieOptions;
-};
+import { createServerClient } from "@supabase/ssr";
 
 export function createClient() {
   const cookieStore = cookies();
@@ -19,22 +12,17 @@ export function createClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet: CookieToSet[]) {
+        setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {}
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Puede fallar en algunos contextos de Server Components.
+            // En ese caso el middleware se encarga del refresh de sesión.
+          }
         },
       },
     }
-  );
-}
-
-// Service role client — bypasses RLS, solo usar server-side
-export function createServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
