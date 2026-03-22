@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BrowserMultiFormatReader, NotFoundException } from "@zxing/browser";
+import { BrowserMultiFormatReader } from "@zxing/browser";
+import { NotFoundException } from "@zxing/library";
 import { Camera, RotateCcw, ScanLine } from "lucide-react";
 
 interface Props {
