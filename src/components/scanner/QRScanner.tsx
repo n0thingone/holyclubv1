@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { BrowserMultiFormatReader, NotFoundException } from "@zxing/browser";
 import { Camera, RotateCcw, ScanLine } from "lucide-react";
 
 interface Props {
@@ -10,42 +10,50 @@ interface Props {
 }
 
 export default function QRScanner({ onScan, paused = false }: Props) {
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const controlsRef = useRef<{ stop: () => void } | null>(null);
   const mountedRef = useRef(false);
   const isStartingRef = useRef(false);
   const isRunningRef = useRef(false);
   const lastScanRef = useRef<string | null>(null);
   const lastScanTimeRef = useRef(0);
 
+  const [scannerReady, setScannerReady] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [scannerReady, setScannerReady] = useState(false);
 
   const stopScanner = async () => {
-    const scanner = scannerRef.current;
-    if (!scanner) return;
-
     try {
-      if (isRunningRef.current) {
-        await scanner.stop();
-      }
+      controlsRef.current?.stop();
     } catch {}
 
+    controlsRef.current = null;
+
     try {
-      await scanner.clear();
+      readerRef.current?.reset();
     } catch {}
 
-    scannerRef.current = null;
+    readerRef.current = null;
     isRunningRef.current = false;
+
+    const video = videoRef.current;
+    if (video?.srcObject) {
+      const stream = video.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      video.srcObject = null;
+    }
 
     if (mountedRef.current) {
       setScanning(false);
     }
   };
 
-  const handleDecoded = (decodedText: string) => {
-    const clean = decodedText.trim();
+  const handleDecoded = (text: string) => {
+    const clean = text.trim();
     const now = Date.now();
+
+    if (!clean) return;
 
     if (
       lastScanRef.current === clean &&
@@ -58,9 +66,7 @@ export default function QRScanner({ onScan, paused = false }: Props) {
     lastScanTimeRef.current = now;
 
     try {
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-        navigator.vibrate(120);
-      }
+      if ("vibrate" in navigator) navigator.vibrate(120);
     } catch {}
 
     onScan(clean);
@@ -68,79 +74,62 @@ export default function QRScanner({ onScan, paused = false }: Props) {
 
   const startScanner = async () => {
     if (paused) return;
+    if (!videoRef.current) return;
     if (isStartingRef.current || isRunningRef.current) return;
 
     isStartingRef.current = true;
+    setErrorMsg(null);
 
     try {
-      setErrorMsg(null);
       await stopScanner();
 
-      const scannerId = "qr-reader";
-      const scanner = new Html5Qrcode(scannerId);
-      scannerRef.current = scanner;
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
 
-      const qrSize =
-        typeof window !== "undefined"
-          ? Math.min(280, Math.floor(window.innerWidth * 0.72))
-          : 250;
-
-      const config = {
-        fps: 10,
-        qrbox: { width: qrSize, height: qrSize },
-        aspectRatio: 1,
-      };
-
-      let started = false;
+      let deviceId: string | undefined;
 
       try {
-        await scanner.start(
-          { facingMode: "environment" },
-          config,
-          handleDecoded,
-          () => {}
-        );
-        started = true;
-      } catch (firstError) {
-        console.warn("Falló facingMode environment:", firstError);
+        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
 
-        try {
-          const cameras = await Html5Qrcode.getCameras();
+        if (devices.length > 0) {
+          const backCam =
+            devices.find((d) =>
+              /back|rear|environment|trasera/i.test(d.label)
+            ) || devices[devices.length - 1];
 
-          if (!cameras || cameras.length === 0) {
-            throw new Error("No se encontraron cámaras en el dispositivo.");
+          deviceId = backCam.deviceId;
+        }
+      } catch {}
+
+      const controls = await reader.decodeFromVideoDevice(
+        deviceId,
+        videoRef.current,
+        (result, error) => {
+          if (result) {
+            handleDecoded(result.getText());
+            return;
           }
 
-          const backCamera =
-            cameras.find((cam) =>
-              /back|rear|trasera|environment/i.test(cam.label)
-            ) || cameras[cameras.length - 1];
-
-          await scanner.start(backCamera.id, config, handleDecoded, () => {});
-          started = true;
-        } catch (secondError) {
-          console.warn("Falló apertura por camera id:", secondError);
-          throw secondError;
+          if (error && !(error instanceof NotFoundException)) {
+            console.error("ZXing scan error:", error);
+          }
         }
-      }
+      );
 
-      if (!started) {
-        throw new Error("No se pudo iniciar el scanner.");
-      }
-
+      controlsRef.current = controls;
       isRunningRef.current = true;
 
       if (mountedRef.current) {
         setScanning(true);
       }
     } catch (err) {
-      console.error("Error iniciando cámara", err);
+      console.error("Error iniciando cámara:", err);
       isRunningRef.current = false;
 
       if (mountedRef.current) {
         setScanning(false);
         setErrorMsg(
-          "No se pudo abrir la cámara en este dispositivo. Probá tocar reintentar o usá el token manual."
+          "No se pudo abrir la cámara. Probá desde Safari o usá el token manual."
         );
       }
     } finally {
@@ -171,7 +160,7 @@ export default function QRScanner({ onScan, paused = false }: Props) {
             setScannerReady(true);
             setTimeout(() => {
               void startScanner();
-            }, 120);
+            }, 100);
           }}
           disabled={paused}
           className="flex w-full max-w-[420px] items-center justify-center gap-3 rounded-2xl border border-fuchsia-400/20 bg-gradient-to-r from-fuchsia-600 to-violet-500 px-5 py-4 text-white shadow-[0_0_30px_rgba(217,70,239,0.25)] transition hover:scale-[1.01] disabled:opacity-50"
@@ -187,13 +176,15 @@ export default function QRScanner({ onScan, paused = false }: Props) {
         className={`${scannerReady ? "block" : "hidden"} w-full`}
         style={{ maxWidth: "420px" }}
       >
-        <div
-          id="qr-reader"
-          style={{
-            width: "100%",
-            maxWidth: "420px",
-          }}
-        />
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+          <video
+            ref={videoRef}
+            className="h-[320px] w-full object-cover"
+            muted
+            playsInline
+            autoPlay
+          />
+        </div>
       </div>
 
       <div className="text-sm text-white/70 text-center">
