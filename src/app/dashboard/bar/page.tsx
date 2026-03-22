@@ -1,245 +1,220 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { useAuth } from "@/context/AuthContext";
 import { useActiveEvent } from "@/hooks/useActiveEvent";
 import QRScanner from "@/components/scanner/QRScanner";
-import { CheckCircle, XCircle, RefreshCw, GlassWater } from "lucide-react";
+import { isWithinTime } from "@/lib/utils";
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  RefreshCw,
+  ScanLine,
+  LogIn,
+  Zap,
+} from "lucide-react";
+import type { ScanResult } from "@/types";
 
-type ScanType = "benefit" | "reward" | "promo" | "invalid" | "used";
+type ScannerMode = "auto" | "entrada" | "gold";
 
-interface BarScanResult {
-  type: ScanType;
-  title: string;
-  description?: string;
-  rrppName?: string;
-  success: boolean;
+interface RecentEntry {
+  id: string;
+  name: string;
+  rrpp: string;
+  time: string;
+  result: string;
+  color: string;
 }
 
-export default function BarPage() {
-  const { event } = useActiveEvent();
-  const [scanResult, setScanResult] = useState<BarScanResult | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const { profile } = useAuth();
-  const staffId = profile?.id ?? null;
+export default function ScannerPage() {
+  const { event, refreshEvent } = useActiveEvent();
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [staffId, setStaffId] = useState<string | null>(null);
+  const [recent, setRecent] = useState<RecentEntry[]>([]);
+  const [nightStats, setNightStats] = useState({
+    valid: 0,
+    invalid: 0,
+    gold: 0,
+  });
+  const [mode, setMode] = useState<ScannerMode>("auto");
+  const [processing, setProcessing] = useState(false);
+
+  const processingRef = useRef(false);
   const supabase = getSupabaseClient();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setStaffId(user.id);
+    });
+  }, [supabase]);
 
   const handleScan = useCallback(
     async (token: string) => {
-      if (isProcessing || !staffId) return;
+      if (processingRef.current || !event || !staffId) return;
 
-      setIsProcessing(true);
+      processingRef.current = true;
+      setProcessing(true);
 
       try {
-        const result = await processBarQr(token, staffId);
+        const result = await processQr(token, event.id, staffId, mode);
         setScanResult(result);
-      } catch {
-        setScanResult({
-          type: "invalid",
-          title: "Error",
-          success: false,
-        });
+      } finally {
+        setTimeout(() => {
+          setScanResult(null);
+          setProcessing(false);
+          processingRef.current = false;
+        }, 2500);
       }
-
-      setTimeout(() => {
-        setScanResult(null);
-        setIsProcessing(false);
-      }, 4000);
     },
-    [isProcessing, staffId]
+    [event, staffId, mode]
   );
 
-  async function processBarQr(
+  async function processQr(
     token: string,
-    redeemedBy: string
-  ): Promise<BarScanResult> {
+    eventId: string,
+    by: string,
+    scannerMode: ScannerMode
+  ): Promise<ScanResult> {
 
-    const { data: reward } = await supabase
-      .from("rrpp_event_rewards")
-      .select("*, rrpp_profiles(display_name)")
-      .eq("qr_token", token)
-      .single();
+    // 🔥 PARSE TOKEN (LA CLAVE)
+    let cleanToken = token.trim();
 
-    if (reward) {
-      if (reward.status === "redeemed") {
-        return {
-          type: "used",
-          title: "Premio ya canjeado",
-          description: reward.title,
-          rrppName: reward.rrpp_profiles?.display_name,
-          success: false,
-        };
+    try {
+      if (cleanToken.startsWith("http://") || cleanToken.startsWith("https://")) {
+        const url = new URL(cleanToken);
+
+        cleanToken =
+          url.searchParams.get("token") ||
+          url.searchParams.get("qr") ||
+          "";
+
+        if (!cleanToken) {
+          const parts = url.pathname.split("/");
+          cleanToken = parts[parts.length - 1];
+        }
       }
+    } catch {}
 
-      if (reward.status !== "unlocked") {
-        return {
-          type: "invalid",
-          title: "Premio no disponible",
-          description: `Estado: ${reward.status}`,
-          success: false,
-        };
-      }
+    cleanToken = cleanToken.trim();
 
-      await supabase
-        .from("rrpp_event_rewards")
-        .update({
-          status: "redeemed",
-          redeemed_at: new Date().toISOString(),
-          redeemed_by: redeemedBy,
-        })
-        .eq("id", reward.id);
-
-      return {
-        type: "reward",
-        title: reward.title,
-        description: "Premio canjeado con éxito",
-        rrppName: reward.rrpp_profiles?.display_name,
-        success: true,
-      };
-    }
-
-    const { data: promo } = await supabase
-      .from("promo_qrs")
+    // 🔥 GOLD
+    const { data: gold } = await supabase
+      .from("gold_qrs")
       .select("*")
-      .eq("qr_token", token)
-      .single();
+      .eq("qr_token", cleanToken)
+      .eq("event_id", eventId)
+      .maybeSingle();
 
-    if (promo) {
-      if (promo.status !== "active") {
+    if (gold) {
+      if (scannerMode === "entrada") {
         return {
-          type: "used",
-          title: "Promo inactiva",
-          description: promo.title,
           success: false,
+          result: "invalid_qr",
+          message: "QR GOLD en modo ENTRADA",
+          color: "yellow",
         };
       }
 
-      if (promo.used_count >= promo.max_uses) {
+      if (gold.used_count >= gold.max_uses) {
         return {
-          type: "used",
-          title: "Promo agotada",
-          description: promo.title,
           success: false,
-        };
-      }
-
-      if (promo.valid_until && new Date() > new Date(promo.valid_until)) {
-        return {
-          type: "used",
-          title: "Promo vencida",
-          description: promo.title,
-          success: false,
+          result: "used_qr",
+          message: "QR GOLD agotado",
+          color: "red",
         };
       }
 
       await supabase
-        .from("promo_qrs")
-        .update({ used_count: promo.used_count + 1 })
-        .eq("id", promo.id);
-
-      await supabase
-        .from("promo_redemptions")
-        .insert({
-          promo_id: promo.id,
-          redeemed_by: redeemedBy,
-        });
+        .from("gold_qrs")
+        .update({ used_count: gold.used_count + 1 })
+        .eq("id", gold.id);
 
       return {
-        type: "promo",
-        title: promo.title,
-        description: promo.description || "Canje exitoso",
         success: true,
+        result: "gold_entry",
+        message: gold.title || "GOLD ENTRY",
+        color: "gold",
       };
     }
+
+    // 🔥 FREE (guest)
+    const { data: g } = await supabase
+      .from("guest_registrations")
+      .select("*")
+      .eq("qr_token", cleanToken)
+      .eq("event_id", eventId)
+      .maybeSingle();
+
+    if (!g) {
+      return {
+        success: false,
+        result: "invalid_qr",
+        message: "QR no encontrado",
+        color: "red",
+      };
+    }
+
+    if (scannerMode === "gold") {
+      return {
+        success: false,
+        result: "invalid_qr",
+        message: "QR FREE en modo GOLD",
+        color: "yellow",
+      };
+    }
+
+    if (g.registration_status === "checked_in") {
+      return {
+        success: false,
+        result: "used_qr",
+        message: "Ya ingresó",
+        color: "red",
+      };
+    }
+
+    if (!isWithinTime(event?.qr_entry_until ?? null)) {
+      return {
+        success: false,
+        result: "expired_qr",
+        message: "QR vencido",
+        color: "yellow",
+      };
+    }
+
+    await supabase
+      .from("guest_registrations")
+      .update({ registration_status: "checked_in" })
+      .eq("id", g.id);
 
     return {
-      type: "invalid",
-      title: "QR inválido",
-      description: "No se encontró este QR",
-      success: false,
+      success: true,
+      result: "valid_entry",
+      message: `${g.first_name} ${g.last_name}`,
+      color: "green",
     };
   }
 
   return (
-    <div className="px-4 py-6 space-y-6 max-w-sm mx-auto">
+    <div className="px-4 py-6 max-w-sm mx-auto space-y-4">
+      <h1 className="text-xl font-bold text-white">TAQUILLA</h1>
 
-      <div>
-        <h1 className="font-display text-2xl font-black tracking-widest text-white flex items-center gap-2">
-          <GlassWater className="w-6 h-6 text-accent-purple" />
-          BARRA
-        </h1>
-
-        <p className="text-text-muted text-sm mt-1">
-          Escáner de premios y promos
-        </p>
-      </div>
-
-      {!scanResult && (
-        <div className="animate-fade-in">
-          <QRScanner onScan={handleScan} />
-          <p className="text-center text-text-muted text-xs mt-3 tracking-widest uppercase">
-            Apunta al QR de premio o promo
-          </p>
-        </div>
-      )}
-
-      {scanResult && (
-        <div
-          className={`holy-card border-2 text-center py-10 px-4 animate-scale-in ${
-            scanResult.success
-              ? "bg-success/10 border-success/40"
-              : "bg-danger/10 border-danger/40"
-          }`}
-        >
-          {scanResult.success ? (
-            <CheckCircle className="w-16 h-16 mx-auto mb-4 text-success" />
-          ) : (
-            <XCircle className="w-16 h-16 mx-auto mb-4 text-danger" />
-          )}
-
-          <div
-            className={`font-display text-2xl font-black tracking-widest mb-2 ${
-              scanResult.success ? "text-success" : "text-danger"
-            }`}
-          >
-            {scanResult.success ? "VÁLIDO ✓" : "INVÁLIDO ✗"}
-          </div>
-
-          <p className="text-text-primary text-xl font-bold mb-1">
-            {scanResult.title}
-          </p>
-
-          {scanResult.description && (
-            <p className="text-text-muted text-sm">
-              {scanResult.description}
-            </p>
-          )}
-
-          {scanResult.rrppName && (
-            <p className="text-text-muted text-sm mt-2">
-              RRPP:{" "}
-              <span className="text-accent-purple font-semibold">
-                {scanResult.rrppName}
-              </span>
-            </p>
-          )}
+      {!scanResult ? (
+        <QRScanner onScan={handleScan} paused={processing} />
+      ) : (
+        <div className="text-center">
+          <p className="text-white text-xl">{scanResult.message}</p>
         </div>
       )}
 
       {scanResult && (
         <button
-          onClick={() => {
-            setScanResult(null);
-            setIsProcessing(false);
-          }}
-          className="holy-btn-secondary flex items-center justify-center gap-2"
+          onClick={() => setScanResult(null)}
+          className="holy-btn-secondary w-full"
         >
-          <RefreshCw className="w-4 h-4" />
           ESCANEAR OTRO
         </button>
       )}
-
     </div>
   );
 }
