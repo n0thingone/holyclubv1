@@ -144,7 +144,7 @@ export default function BarraScannerPage() {
 
   const canUseScanner =
     profile?.role === "admin" ||
-    profile?.role === "barra" ||
+    profile?.role === "bar" ||
     profile?.role === "cajero" ||
     profile?.role === "cashier";
 
