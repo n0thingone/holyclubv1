@@ -662,10 +662,10 @@ const newCreditsTotal = !safeCurrentPoints
           };
         }
 
-        const { error: goldUpdateError } = await supabase
-          .from("gold_qrs")
-          .update({ used_count: (gold.used_count || 0) + 1 })
-          .eq("id", gold.id);
+      const { error: goldUpdateError } = await (supabase as any)
+  .from("gold_qrs")
+  .update({ used_count: (gold.used_count || 0) + 1 })
+  .eq("id", gold.id);
 
         if (goldUpdateError) {
           console.error("No se pudo actualizar el QR Gold:", goldUpdateError);
