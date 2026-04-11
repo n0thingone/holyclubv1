@@ -478,10 +478,10 @@ setNightStats({
       }
 
       if (existingMovement) {
-        const { error: markAlreadyError } = await supabase
-          .from("guest_registrations")
-          .update({ entry_points_awarded: true })
-          .eq("id", guest.id);
+       const { error: markAlreadyError } = await (supabase as any)
+  .from("guest_registrations")
+  .update({ entry_points_awarded: true })
+  .eq("id", guest.id);
 
         if (markAlreadyError) {
           console.error(
