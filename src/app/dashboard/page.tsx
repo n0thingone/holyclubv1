@@ -276,16 +276,15 @@ export default function DashboardPage() {
       return;
     }
 
-    setActiveEvent(data ?? null);
+    const eventData = data as { id?: string } | null;
 
-    if (data?.id) {
-      await loadStats(data.id);
-    } else {
-      setStats({
-        listCount: 0,
-        entryCount: 0,
-      });
-    }
+setActiveEvent(eventData ?? null);
+
+if (eventData?.id) {
+  await loadStats(eventData.id);
+} else {
+  ...
+}
 
     setLoading(false);
   }
