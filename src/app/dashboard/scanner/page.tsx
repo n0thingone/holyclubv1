@@ -628,7 +628,7 @@ const newCreditsTotal = !safeCurrentPoints
           goldError = fallbackError;
         } else {
           gold =
-            candidates?.find((row) => tokenMatchesDb(row.qr_token || "", rawValue)) ?? null;
+         candidates?.find((row: any) => tokenMatchesDb(row.qr_token || "", rawValue))
         }
       }
 
