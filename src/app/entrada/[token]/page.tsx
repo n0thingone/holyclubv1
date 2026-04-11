@@ -100,9 +100,9 @@ export default function EntradaTokenPage() {
       setMessage("");
       setError("");
 
-      const { data, error } = await supabase.rpc("redeem_reward_qr", {
-        p_qr_token: token,
-      });
+     const { data, error } = await (supabase as any).rpc("redeem_reward_qr", {
+  p_qr_token: token,
+});
 
       if (error) throw error;
 
