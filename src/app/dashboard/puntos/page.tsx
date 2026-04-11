@@ -388,11 +388,11 @@ export default function Page() {
     setLoadingRewardId(reward.id);
 
     try {
-   const { data, error } = await (supabase as any).rpc("create_reward_redemption", {
+const { data, error } = await (supabase as any).rpc("create_reward_redemption", {
   p_user_id: userId,
   p_reward_id: reward.id,
   p_event_id: event.id,
-  p_points_cost: ...
+  p_points_cost: reward.points_cost,
 });
 
       const result = data as RpcRedeemResponse | null;
