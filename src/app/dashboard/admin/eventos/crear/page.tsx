@@ -271,13 +271,13 @@ export default function AdminEventosPage() {
     resetMessages();
     setSaving(true);
 
-    const { error: deactivateError } = await supabase
-      .from("events")
-      .update({
-        is_active: false,
-        status: "inactive",
-      })
-      .or("is_active.eq.true,status.eq.active");
+   const { error: deactivateError } = await (supabase as any)
+  .from("events")
+  .update({
+    is_active: false,
+    status: "inactive",
+  })
+  .or("is_active.eq.true,status.eq.active");
 
     if (deactivateError) {
       setErrorMessage(
@@ -287,15 +287,15 @@ export default function AdminEventosPage() {
       return;
     }
 
-    const { error: activateError } = await supabase
-      .from("events")
-      .update({
-        is_active: true,
-        is_closed: false,
-        closed_at: null,
-        status: "active",
-      })
-      .eq("id", eventId);
+  const { error: activateError } = await (supabase as any)
+  .from("events")
+  .update({
+    is_active: true,
+    is_closed: false,
+    closed_at: null,
+    status: "active",
+  })
+  .eq("id", eventId);
 
     if (activateError) {
       setErrorMessage(
@@ -314,15 +314,15 @@ export default function AdminEventosPage() {
     resetMessages();
     setSaving(true);
 
-    const { error } = await supabase
-      .from("events")
-      .update({
-        is_active: false,
-        is_closed: true,
-        closed_at: new Date().toISOString(),
-        status: "closed",
-      })
-      .eq("id", eventId);
+ const { error } = await (supabase as any)
+  .from("events")
+  .update({
+    is_active: false,
+    is_closed: true,
+    closed_at: new Date().toISOString(),
+    status: "closed",
+  })
+  .eq("id", eventId);
 
     if (error) {
       setErrorMessage(error.message || "No se pudo cerrar el evento.");
