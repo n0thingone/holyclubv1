@@ -62,11 +62,10 @@ const credits = Number((profile as any)?.holy_points_balance ?? 0);
         setError("No se encontró el usuario.");
         return;
       }
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({ username: cleanName })
-        .eq("id", userId);
+const { error } = await (supabase as any)
+  .from("profiles")
+  .update({ username: cleanName })
+  .eq("id", userId);
 
       if (error) throw error;
 
