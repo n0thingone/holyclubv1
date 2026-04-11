@@ -106,12 +106,12 @@ export default function AdminPointsPage() {
   async function loadMovements(userId: string) {
     setError(null);
 
-    const { data, error } = await supabase.rpc(
-      "get_points_movements_for_admin",
-      {
-        p_user_id: userId,
-      }
-    );
+  const { data, error } = await (supabase as any).rpc(
+  "get_points_movements_for_admin",
+  {
+    p_user_id: userId,
+  }
+);
 
     if (error) {
       setError(error.message);
