@@ -106,7 +106,7 @@ export default function GoldPage() {
         expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
       };
 
-      const { error } = await supabase.from("gold_qrs").insert(payload);
+    const { error } = await (supabase as any).from("gold_qrs").insert(payload);
 
       if (error) throw error;
 
