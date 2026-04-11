@@ -528,27 +528,27 @@ const newCreditsTotal = !safeCurrentPoints
   : (safeCurrentPoints.points || 0) + GUEST_ENTRY_POINTS;
 
       if (!safeCurrentPoints) {
-        const { error: insertPointsError } = await supabase
-          .from("holy_points")
-          .insert({
-            user_id: guest.user_id,
-            points: GUEST_ENTRY_POINTS,
-            reason: "Ingreso por lista free",
-            created_at: new Date().toISOString(),
-          });
+        const { error: insertPointsError } = await (supabase as any)
+  .from("holy_points")
+  .insert({
+    user_id: guest.user_id,
+    points: GUEST_ENTRY_POINTS,
+    reason: "Ingreso por lista free",
+    created_at: new Date().toISOString(),
+  });
 
         if (insertPointsError) {
           console.error("No se pudo crear holy_points:", insertPointsError);
           return 0;
         }
       } else {
-        const { error: updatePointsError } = await supabase
-          .from("holy_points")
-          .update({
-            points: newCreditsTotal,
-            reason: "Ingreso por lista free",
-          })
-          .eq("user_id", guest.user_id);
+        const { error: updatePointsError } = await (supabase as any)
+  .from("holy_points")
+  .update({
+    points: newCreditsTotal,
+    reason: "Ingreso por lista free",
+  })
+  .eq("user_id", guest.user_id);
 
         if (updatePointsError) {
           console.error("No se pudo actualizar holy_points:", updatePointsError);
