@@ -677,7 +677,7 @@ const newCreditsTotal = !safeCurrentPoints
           };
         }
 
-        await supabase.from("checkins").insert({
+      await (supabase as any).from("checkins").insert({
           event_id: eventId,
           result: "gold_entry",
           checked_in_by: by,
