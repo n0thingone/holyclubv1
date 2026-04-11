@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           holy_points_balance: WELCOME_BONUS,
         };
 
-        const { error } = await supabase.from("profiles").insert(payload);
+        const { error } = await (supabase as any).from("profiles").insert(payload);
 
         if (error) {
           console.error("Error ensureProfile insert code:", error?.code);
