@@ -126,7 +126,7 @@ export default function RrppConsumicionesPage() {
 
         const qrToken = crypto.randomUUID();
 
-        const { data: inserted, error: insertError } = await supabase
+        const { data: inserted, error: insertError } =await (supabase as any)
           .from("rrpp_event_rewards")
           .insert({
             rrpp_id: rrpp.id,
