@@ -105,11 +105,11 @@ export default function AdminEventosPage() {
       return;
     }
 
-    const { data: profileData, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
+  const { data: profileData, error: profileError } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("id", user.id)
+  .maybeSingle<{ role: string | null }>();
 
     if (profileError) {
       setErrorMessage(profileError.message || "No se pudo cargar el perfil.");
@@ -117,7 +117,7 @@ export default function AdminEventosPage() {
       return;
     }
 
-    setUserRole(String(profileData?.role || "").toLowerCase());
+  setUserRole(String(profileData?.role || "").toLowerCase());
 
     const { data, error } = await supabase
       .from("events")
