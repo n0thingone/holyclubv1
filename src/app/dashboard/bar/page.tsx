@@ -130,10 +130,10 @@ export default function ScannerPage() {
         };
       }
 
-      await supabase
-        .from("gold_qrs")
-      .update({ used_count: (gold?.used_count ?? 0) + 1 })
-        .eq("id", gold.id);
+     await (supabase as any)
+  .from("gold_qrs")
+  .update({ used_count: (gold?.used_count ?? 0) + 1 })
+  .eq("id", gold.id);
 
       return {
         success: true,
