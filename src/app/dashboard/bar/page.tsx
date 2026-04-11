@@ -99,12 +99,17 @@ export default function ScannerPage() {
     cleanToken = cleanToken.trim();
 
     // 🔥 GOLD
-    const { data: gold } = await supabase
-      .from("gold_qrs")
-      .select("*")
-      .eq("qr_token", cleanToken)
-      .eq("event_id", eventId)
-      .maybeSingle();
+   const { data: gold } = await supabase
+  .from("gold_qrs")
+  .select("*")
+  .eq("qr_token", cleanToken)
+  .eq("event_id", eventId)
+  .maybeSingle<{
+    used_count: number;
+    max_uses: number;
+    id: string;
+    title?: string | null;
+  }>();
 
     if (gold) {
       if (scannerMode === "entrada") {
@@ -116,7 +121,7 @@ export default function ScannerPage() {
         };
       }
 
-      if (gold.used_count >= gold.max_uses) {
+     if ((gold?.used_count ?? 0) >= (gold?.max_uses ?? 0)) {
         return {
           success: false,
           result: "used_qr",
@@ -127,7 +132,7 @@ export default function ScannerPage() {
 
       await supabase
         .from("gold_qrs")
-        .update({ used_count: gold.used_count + 1 })
+      .update({ used_count: (gold?.used_count ?? 0) + 1 })
         .eq("id", gold.id);
 
       return {
