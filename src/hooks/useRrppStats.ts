@@ -72,7 +72,7 @@ export function useRrppStats(rrppId?: string, eventId?: string) {
       if (benefitsRes.error) throw benefitsRes.error;
       if (rewardsRes.error) throw rewardsRes.error;
 
-      const registrations = registrationsRes.data || [];
+const registrations = (registrationsRes.data ?? []) as any[];
       const checkedInFromRegistrations = registrations.filter(
         (r) => r.registration_status === "checked_in"
       ).length;
