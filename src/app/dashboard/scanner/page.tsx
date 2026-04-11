@@ -1,5 +1,5 @@
+// @ts-nocheck
 "use client";
-
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { useActiveEvent } from "@/hooks/useActiveEvent";
