@@ -648,11 +648,11 @@ const newCreditsTotal = !safeCurrentPoints
           gold.used_count >= gold.max_uses ||
           (gold.expires_at && new Date(gold.expires_at).getTime() < Date.now())
         ) {
-          await supabase.from("checkins").insert({
-            event_id: eventId,
-            checked_in_by: by,
-            result: "used_qr",
-          });
+        await (supabase as any).from("checkins").insert({
+  event_id: eventId,
+  checked_in_by: by,
+  result: "used_qr",
+});
 
           return {
             success: false,
