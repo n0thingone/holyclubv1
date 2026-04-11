@@ -207,10 +207,7 @@ export default function DashboardPage() {
   const [now, setNow] = useState(Date.now());
 
   const role = profile?.role;
-  const isAdmin =
-    role === "admin" ||
-    role === "bar" ||
-    role === "cashier";
+  const isAdmin = role === "admin" || role === "bar" || role === "cashier";
 
   useEffect(() => {
     if (!authLoading && profile && !isAdmin) {
@@ -276,15 +273,18 @@ export default function DashboardPage() {
       return;
     }
 
-    const eventData = data as { id?: string } | null;
+    const eventData = data as EventRow | null;
 
-setActiveEvent(eventData ?? null);
+    setActiveEvent(eventData ?? null);
 
-if (eventData?.id) {
-  await loadStats(eventData.id);
-} else {
-  ...
-}
+    if (eventData?.id) {
+      await loadStats(eventData.id);
+    } else {
+      setStats({
+        listCount: 0,
+        entryCount: 0,
+      });
+    }
 
     setLoading(false);
   }
@@ -415,7 +415,7 @@ if (eventData?.id) {
 
     const nextValue = !activeEvent[field];
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("events")
       .update({ [field]: nextValue })
       .eq("id", activeEvent.id);
@@ -441,8 +441,8 @@ if (eventData?.id) {
           ? "Ahora los clientes pueden ver los ingresos."
           : "Los ingresos quedaron ocultos para clientes."
         : nextValue
-        ? "Ahora los clientes pueden ver la cantidad en lista."
-        : "La cantidad en lista quedó oculta para clientes."
+          ? "Ahora los clientes pueden ver la cantidad en lista."
+          : "La cantidad en lista quedó oculta para clientes."
     );
 
     setUpdatingVisibility(false);
@@ -488,7 +488,7 @@ if (eventData?.id) {
       show_list_count: false,
     };
 
-    const { error } = await supabase.from("events").insert(payload);
+    const { error } = await (supabase as any).from("events").insert(payload);
 
     if (error) {
       setError(error.message);
@@ -514,7 +514,7 @@ if (eventData?.id) {
     setMessage(null);
     setError(null);
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("events")
       .update({
         status: "closed",
@@ -542,7 +542,7 @@ if (eventData?.id) {
 
     const nowIso = new Date().toISOString();
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("events")
       .update({ registration_until: nowIso })
       .eq("id", activeEvent.id);
