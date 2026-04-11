@@ -249,7 +249,9 @@ export default function AdminEventosPage() {
       created_by: user?.id ?? null,
     };
 
-    const { error } = await supabase.from("events").insert(payload);
+   const { error } = await (supabase as any)
+  .from("events")
+  .insert(payload);
 
     if (error) {
       setErrorMessage(
