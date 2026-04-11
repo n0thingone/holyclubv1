@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { generateQrToken, formatTime, formatDate } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
-import { Zap, Clock, UserCheck, AlertCircle, Share2 } from "lucide-react";
+import {
+  Zap,
+  Clock,
+  UserCheck,
+  AlertCircle,
+  Share2,
+  LogIn,
+  Sparkles,
+} from "lucide-react";
 import type { Event, RrppProfile } from "@/types";
 
 interface Props {
@@ -23,6 +31,7 @@ interface RegistrationResult {
   qr_token: string;
   first_name: string;
   last_name: string;
+  linked_to_account: boolean;
 }
 
 export default function GuestRegistrationClient({
@@ -30,15 +39,52 @@ export default function GuestRegistrationClient({
   event,
   isRegistrationOpen,
 }: Props) {
+  const supabase = getSupabaseClient();
+
   const [form, setForm] = useState<FormData>({
     first_name: "",
     last_name: "",
     dni_last3: "",
   });
+
   const [loading, setLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [error, setError] = useState("");
   const [result, setResult] = useState<RegistrationResult | null>(null);
-  const supabase = getSupabaseClient();
+
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (!alive) return;
+
+      if (error) {
+        console.error("No se pudo obtener el usuario actual:", error);
+        setAuthLoading(false);
+        return;
+      }
+
+      const user = data.user ?? null;
+      setUserId(user?.id ?? null);
+      setUserEmail(user?.email ?? "");
+      setAuthLoading(false);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [supabase]);
+
+  const isLogged = useMemo(() => !!userId, [userId]);
+
+  function goToLogin() {
+    if (typeof window === "undefined") return;
+    const next = encodeURIComponent(window.location.pathname);
+    window.location.href = `/login?next=${next}`;
+  }
 
   if (!rrpp) {
     return (
@@ -48,7 +94,9 @@ export default function GuestRegistrationClient({
           <h1 className="font-display text-xl font-bold text-white mb-2">
             Enlace no válido
           </h1>
-          <p className="text-text-muted">Este enlace no existe o fue desactivado</p>
+          <p className="text-text-muted">
+            Este enlace no existe o fue desactivado
+          </p>
         </div>
       </div>
     );
@@ -108,19 +156,24 @@ export default function GuestRegistrationClient({
 
     const qrToken = generateQrToken();
 
+    const payload = {
+      event_id: event.id,
+      rrpp_id: rrpp.id,
+      user_id: userId,
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      dni_last3: form.dni_last3,
+      qr_token: qrToken,
+      registration_status: "registered" as const,
+      entry_points_awarded: false,
+    };
+
     const { error: insertError } = await supabase
       .from("guest_registrations")
-      .insert({
-        event_id: event.id,
-        rrpp_id: rrpp.id,
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        dni_last3: form.dni_last3,
-        qr_token: qrToken,
-        registration_status: "registered",
-      });
+      .insert(payload);
 
     if (insertError) {
+      console.error("Error insertando invitado:", insertError);
       setError("Error al registrarte. Intentá de nuevo.");
       setLoading(false);
       return;
@@ -130,7 +183,9 @@ export default function GuestRegistrationClient({
       qr_token: qrToken,
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
+      linked_to_account: !!userId,
     });
+
     setLoading(false);
   }
 
@@ -176,12 +231,33 @@ export default function GuestRegistrationClient({
             <p className="font-display text-2xl font-black tracking-wide text-white mb-1">
               {result.first_name} {result.last_name}
             </p>
-            <p className="text-text-muted text-sm mb-6">
+            <p className="text-text-muted text-sm mb-3">
               Invitado por{" "}
               <span className="text-accent-purple font-semibold">
                 {rrpp.display_name}
               </span>
             </p>
+
+            {result.linked_to_account ? (
+              <div className="mb-5 rounded-xl border border-success/30 bg-success/10 px-4 py-3">
+                <p className="text-success text-sm font-semibold flex items-center justify-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  Vinculado a tu cuenta
+                </p>
+                <p className="text-text-muted text-xs mt-1">
+                  Cuando escaneen este QR, tu ingreso quedará asociado a tu usuario
+                </p>
+              </div>
+            ) : (
+              <div className="mb-5 rounded-xl border border-border bg-background/50 px-4 py-3">
+                <p className="text-text-muted text-sm font-semibold">
+                  Registro sin cuenta
+                </p>
+                <p className="text-text-muted text-xs mt-1">
+                  Tu QR funciona igual, pero este ingreso no queda vinculado a una cuenta
+                </p>
+              </div>
+            )}
 
             <div className="bg-white rounded-2xl p-5 inline-block mx-auto mb-4 shadow-purple">
               <QRCodeSVG
@@ -193,9 +269,9 @@ export default function GuestRegistrationClient({
             </div>
 
             <p className="text-text-muted text-xs tracking-widest uppercase mb-2">
-              Mostra este QR en la puerta
+              Mostrá este QR en la puerta
             </p>
-            <p className="font-mono text-xs text-text-muted/50">
+            <p className="font-mono text-xs text-text-muted/50 break-all">
               {result.qr_token}
             </p>
 
@@ -266,6 +342,40 @@ export default function GuestRegistrationClient({
         </div>
 
         <div className="holy-card">
+          {authLoading ? (
+            <div className="rounded-xl border border-border bg-background/40 px-4 py-3 mb-4">
+              <p className="text-text-muted text-sm">Verificando cuenta…</p>
+            </div>
+          ) : isLogged ? (
+            <div className="rounded-xl border border-success/30 bg-success/10 px-4 py-3 mb-4">
+              <p className="text-success text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                Te estás anotando con tu cuenta
+              </p>
+              <p className="text-text-muted text-xs mt-1">
+                {userEmail || "Usuario autenticado"}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-3 mb-4">
+              <p className="text-white text-sm font-semibold">
+                Estás anotándote sin cuenta
+              </p>
+              <p className="text-text-muted text-xs mt-1 mb-3">
+                Tu QR funciona igual. Si querés vincular el ingreso a tu usuario,
+                iniciá sesión antes de anotarte.
+              </p>
+              <button
+                type="button"
+                onClick={goToLogin}
+                className="holy-btn-secondary w-full"
+              >
+                <LogIn className="w-4 h-4 inline-block mr-2" />
+                TENGO CUENTA / INICIAR SESIÓN
+              </button>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="holy-label">Nombre</label>
@@ -274,7 +384,7 @@ export default function GuestRegistrationClient({
                 placeholder="Juan"
                 value={form.first_name}
                 onChange={(e) =>
-                  setForm({ ...form, first_name: e.target.value })
+                  setForm((prev) => ({ ...prev, first_name: e.target.value }))
                 }
                 required
                 autoComplete="given-name"
@@ -288,7 +398,7 @@ export default function GuestRegistrationClient({
                 placeholder="García"
                 value={form.last_name}
                 onChange={(e) =>
-                  setForm({ ...form, last_name: e.target.value })
+                  setForm((prev) => ({ ...prev, last_name: e.target.value }))
                 }
                 required
                 autoComplete="family-name"
@@ -303,7 +413,7 @@ export default function GuestRegistrationClient({
                 value={form.dni_last3}
                 onChange={(e) => {
                   const val = e.target.value.replace(/\D/g, "").slice(0, 3);
-                  setForm({ ...form, dni_last3: val });
+                  setForm((prev) => ({ ...prev, dni_last3: val }));
                 }}
                 inputMode="numeric"
                 maxLength={3}
@@ -330,6 +440,8 @@ export default function GuestRegistrationClient({
                   <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   Registrando...
                 </span>
+              ) : isLogged ? (
+                "ANOTARME CON MI CUENTA ✓"
               ) : (
                 "ANOTARME FREE ✓"
               )}

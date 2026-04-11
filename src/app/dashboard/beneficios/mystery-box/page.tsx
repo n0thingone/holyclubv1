@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Gift,
@@ -12,6 +12,7 @@ import {
   PartyPopper,
   AlertCircle,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
@@ -29,7 +30,7 @@ type BoxReward = {
 
 type RpcResult = {
   reward: string;
-  balance: number;
+  balance?: number | null;
 };
 
 const BOX_COST = 3000;
@@ -96,6 +97,11 @@ const rewards: BoxReward[] = [
   },
 ];
 
+function isGuestUser() {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem("holy_guest") === "true";
+}
+
 function rarityLabel(rarity: Rarity) {
   switch (rarity) {
     case "common":
@@ -153,19 +159,24 @@ function getRewardMeta(rewardId: string): BoxReward | null {
 
 export default function MysteryBoxPage() {
   const supabase = useMemo(() => getSupabaseClient(), []);
-  const { profile, loading } = useAuth();
+  const { profile, loading, refreshProfile } = useAuth();
+  const router = useRouter();
 
   const [isOpening, setIsOpening] = useState(false);
   const [showFlash, setShowFlash] = useState(false);
   const [openedReward, setOpenedReward] = useState<BoxReward | null>(null);
   const [history, setHistory] = useState<BoxReward[]>([]);
   const [showJackpot, setShowJackpot] = useState(false);
-  const [localBalance, setLocalBalance] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
 
-  const profileBalance = Number((profile as any)?.holy_points_balance ?? 0);
-  const credits = localBalance ?? profileBalance;
-  const canOpen = credits >= BOX_COST && !isOpening && !loading;
+  useEffect(() => {
+    setIsGuest(isGuestUser());
+  }, []);
+
+  const userId = (profile as any)?.id ?? null;
+ const credits = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0);
+  const canOpen = !isGuest && credits >= BOX_COST && !isOpening && !loading;
 
   const rarityCount = useMemo(() => {
     return {
@@ -177,7 +188,11 @@ export default function MysteryBoxPage() {
   }, []);
 
   async function handleOpenBox() {
-    const userId = (profile as any)?.id;
+    if (isGuest) {
+      setError("Iniciá sesión para usar la Mystery Box.");
+      return;
+    }
+
     if (!canOpen || !userId) return;
 
     setError(null);
@@ -213,14 +228,15 @@ export default function MysteryBoxPage() {
       setOpenedReward(rewardMeta);
       setHistory((prev) => [rewardMeta, ...prev].slice(0, 6));
 
+      await refreshProfile();
+
       if (typeof result.balance === "number") {
-  setLocalBalance(result.balance);
-  window.dispatchEvent(
-    new CustomEvent("holy-credits-updated", {
-      detail: result.balance,
-    })
-  );
-}
+        window.dispatchEvent(
+          new CustomEvent("holy-credits-updated", {
+            detail: result.balance,
+          })
+        );
+      }
 
       if (rewardMeta.id === "10000_credits") {
         setShowJackpot(true);
@@ -235,7 +251,7 @@ export default function MysteryBoxPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 pb-24 pt-2">
+    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 pb-24 pt-2 text-white">
       <AnimatePresence>
         {showJackpot ? (
           <motion.div
@@ -300,6 +316,12 @@ export default function MysteryBoxPage() {
         ) : null}
       </AnimatePresence>
 
+      {isGuest ? (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center text-sm text-amber-300">
+          Estás como invitado. Iniciá sesión para abrir la Mystery Box.
+        </div>
+      ) : null}
+
       <section className="relative overflow-hidden rounded-[34px] border border-fuchsia-500/20 bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.22),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.14),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-5 shadow-[0_0_70px_rgba(168,85,247,0.18)] backdrop-blur-xl sm:p-6">
         <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.20))]" />
 
@@ -353,8 +375,8 @@ export default function MysteryBoxPage() {
 
       {error ? (
         <div className="flex items-center gap-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          <AlertCircle className="h-4 w-4" />
-          {error}
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{error}</span>
         </div>
       ) : null}
 
@@ -480,12 +502,14 @@ export default function MysteryBoxPage() {
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => setOpenedReward(null)}
-                    className="mt-6 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10"
-                  >
-                    Volver a la caja
-                  </button>
+                  <div className="mt-6 flex items-center justify-center">
+                    <button
+                      onClick={() => router.push("/dashboard/puntos/movimientos")}
+                      className="inline-flex items-center justify-center rounded-2xl bg-fuchsia-600 px-6 py-3 text-sm font-black text-white shadow-[0_0_28px_rgba(217,70,239,0.25)] transition hover:bg-fuchsia-500"
+                    >
+                      IR A MIS QR
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </div>
@@ -494,7 +518,9 @@ export default function MysteryBoxPage() {
               {!canOpen && !isOpening && !loading ? (
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300">
                   <Lock className="h-4 w-4" />
-                  No tenés créditos suficientes
+                  {isGuest
+                    ? "Iniciá sesión para usar la Mystery Box"
+                    : "No tenés créditos suficientes"}
                 </div>
               ) : null}
             </div>
@@ -505,7 +531,12 @@ export default function MysteryBoxPage() {
                 disabled={!canOpen}
                 className="inline-flex min-w-[240px] items-center justify-center gap-2 rounded-[22px] bg-fuchsia-600 px-8 py-4 text-base font-black text-white shadow-[0_0_28px_rgba(217,70,239,0.35)] transition hover:bg-fuchsia-500 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none"
               >
-                {isOpening ? (
+                {isGuest ? (
+                  <>
+                    <Lock className="h-5 w-5" />
+                    INICIÁ SESIÓN
+                  </>
+                ) : isOpening ? (
                   <>
                     <Gift className="h-5 w-5 animate-pulse" />
                     Abriendo caja...

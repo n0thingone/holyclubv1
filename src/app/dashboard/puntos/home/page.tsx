@@ -1,571 +1,638 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { getSupabaseClient } from "@/lib/supabase/client";
-import { useAuth } from "@/context/AuthContext";
 import {
-  Sparkles,
+  Lock,
   Gift,
   QrCode,
-  Clock3,
-  CalendarDays,
+  Sparkles,
+  Instagram,
+  MessageCircle,
+  ChevronLeft,
   ChevronRight,
-  Trophy,
-  Flame,
+  Beer,
+  Martini,
+  Pizza,
+  Hamburger,
+  Crown,
+  Zap,
 } from "lucide-react";
+
+import DashboardShell from "@/components/navigation/DashboardShell";
+import HolyCoin from "@/components/ui/HolyCoin";
+import { getSupabaseClient } from "@/lib/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+
+type Reward = {
+  id: string;
+  name: string;
+  description: string | null;
+  points_cost: number;
+};
 
 type EventRow = {
   id: string;
   name: string;
-  event_date: string | null;
-  status: string;
-  registration_until: string | null;
-  qr_entry_until: string | null;
-  created_by: string | null;
-  created_at: string | null;
-  closed_at: string | null;
-  show_entry_count: boolean | null;
-  show_list_count: boolean | null;
+  status?: string | null;
 };
 
-type StatsState = {
-  entryCount: number;
-  listCount: number;
-};
-
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("es-AR");
+function getIsGuest() {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem("holy_guest") === "true";
 }
 
-function formatCountdown(ms: number) {
-  if (ms <= 0) return "0 MIN";
-
-  const totalMinutes = Math.floor(ms / 1000 / 60);
-
-  if (totalMinutes <= 10) {
-    return "🔥 POR COMENZAR";
-  }
-
-  const days = Math.floor(totalMinutes / (60 * 24));
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-  const minutes = totalMinutes % 60;
-
-  const parts: string[] = [];
-
-  if (days > 0) {
-    parts.push(`${days} ${days === 1 ? "DIA" : "DIAS"}`);
-  }
-
-  if (hours > 0) {
-    parts.push(`${hours} HS`);
-  }
-
-  if (minutes > 0 || parts.length === 0) {
-    parts.push(`${minutes} MIN`);
-  }
-
-  return parts.join(" • ");
+function getRewardTier(points: number) {
+  if (points < 2000) return "common";
+  if (points < 5000) return "rare";
+  if (points < 9000) return "epic";
+  return "legendary";
 }
 
-function ActionCard({
-  href,
-  icon: Icon,
-  title,
-  subtitle,
-  glowClassName,
-}: {
-  href: string;
-  icon: React.ElementType;
-  title: string;
-  subtitle: string;
-  glowClassName?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`group relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.05] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-fuchsia-500/40 hover:bg-white/[0.08] hover:shadow-[0_0_25px_rgba(217,70,239,0.15)] ${glowClassName || ""}`}
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.14),transparent_38%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+function getTierLabel(points: number) {
+  const tier = getRewardTier(points);
 
-      <div className="relative flex items-center gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-white/90">
-          <Icon className="h-5 w-5" />
-        </div>
+  switch (tier) {
+    case "common":
+      return "COMÚN";
+    case "rare":
+      return "RARO";
+    case "epic":
+      return "ÉPICO";
+    case "legendary":
+      return "VIP";
+    default:
+      return "REWARD";
+  }
+}
 
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold text-white">{title}</div>
-          <div className="text-sm text-white/50">{subtitle}</div>
-        </div>
+function getRewardIcon(name: string) {
+  const n = name.toLowerCase();
 
-        <ChevronRight className="h-4 w-4 text-white/35 transition group-hover:translate-x-0.5 group-hover:text-white/70" />
-      </div>
-    </Link>
-  );
+  if (n.includes("fernet")) return Martini;
+  if (n.includes("cerveza") || n.includes("pinta")) return Beer;
+  if (n.includes("trago")) return Martini;
+  if (n.includes("pizza")) return Pizza;
+  if (n.includes("burger") || n.includes("hamb")) return Hamburger;
+  if (n.includes("vip") || n.includes("gold") || n.includes("entrada")) {
+    return Crown;
+  }
+
+  return Gift;
+}
+
+function getTierStyles(points: number, active: boolean) {
+  const tier = getRewardTier(points);
+  const activeState = active
+    ? "scale-[1.01] opacity-100"
+    : "scale-[0.97] opacity-70";
+
+  switch (tier) {
+    case "common":
+      return {
+        wrap: `${activeState} border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]`,
+        badge: "border-white/10 bg-white/8 text-white/80",
+        glow: "bg-white/10",
+        accent: "text-white",
+        button:
+          "border-white/10 bg-white/6 text-white/80 hover:bg-white/10 active:bg-white/10",
+      };
+    case "rare":
+      return {
+        wrap: `${activeState} border-cyan-400/25 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(34,211,238,0.04))] shadow-[0_0_24px_rgba(34,211,238,0.08)]`,
+        badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-300",
+        glow: "bg-cyan-400/15",
+        accent: "text-cyan-300",
+        button:
+          "border-cyan-400/20 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/15 active:bg-cyan-500/15",
+      };
+    case "epic":
+      return {
+        wrap: `${activeState} border-fuchsia-400/25 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.20),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(217,70,239,0.04))] shadow-[0_0_26px_rgba(217,70,239,0.10)]`,
+        badge: "border-fuchsia-400/20 bg-fuchsia-500/10 text-fuchsia-300",
+        glow: "bg-fuchsia-400/18",
+        accent: "text-fuchsia-300",
+        button:
+          "border-fuchsia-400/20 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/15 active:bg-fuchsia-500/15",
+      };
+    case "legendary":
+      return {
+        wrap: `${activeState} border-amber-400/30 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.20),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(251,191,36,0.04))] shadow-[0_0_28px_rgba(251,191,36,0.10)]`,
+        badge: "border-amber-400/20 bg-amber-500/10 text-amber-300",
+        glow: "bg-amber-400/18",
+        accent: "text-amber-300",
+        button:
+          "border-amber-400/20 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15 active:bg-amber-500/15",
+      };
+    default:
+      return {
+        wrap: `${activeState} border-white/10 bg-white/5`,
+        badge: "border-white/10 bg-white/8 text-white/80",
+        glow: "bg-white/10",
+        accent: "text-white",
+        button:
+          "border-white/10 bg-white/6 text-white/80 hover:bg-white/10 active:bg-white/10",
+      };
+  }
+}
+
+function getNextGoal(balance: number) {
+  const goals = [5000, 9000, 15000, 25000, 40000, 60000, 100000];
+  const next = goals.find((goal) => balance < goal);
+  return next ?? null;
 }
 
 export default function PuntosHomePage() {
-  const supabase = getSupabaseClient();
+  const supabase = useMemo(() => getSupabaseClient(), []);
   const { profile } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [activeEvent, setActiveEvent] = useState<EventRow | null>(null);
-  const [stats, setStats] = useState<StatsState>({
-    entryCount: 0,
-    listCount: 0,
-  });
-  const [now, setNow] = useState(Date.now());
+  const [isGuest, setIsGuest] = useState(false);
+  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [activeRewardIndex, setActiveRewardIndex] = useState(0);
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
+
+  const sliderRef = useRef<HTMLDivElement | null>(null);
+  const autoScrollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const interactionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const prevBalanceRef = useRef(0);
+
+  const realBalance = isGuest
+    ? 0
+    : Number((profile as any)?.holy_points_balance ?? 0);
+
+  const [animatedBalance, setAnimatedBalance] = useState(realBalance);
+
+  const activeReward = rewards[activeRewardIndex] ?? null;
+  const nextGoal = getNextGoal(realBalance);
+  const progressToGoal = nextGoal
+    ? Math.max(0, Math.min(100, (realBalance / nextGoal) * 100))
+    : 100;
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(Date.now());
-    }, 1000);
-
-    return () => clearInterval(interval);
+    setIsGuest(getIsGuest());
   }, []);
 
-  async function loadStats(eventId: string) {
-    try {
-      const [listRes, entryRes] = await Promise.all([
-        supabase
-          .from("guests")
-          .select("*", { count: "exact", head: true })
-          .eq("event_id", eventId),
+  useEffect(() => {
+    async function loadHomeData() {
+      if (isGuest) {
+        setLoading(false);
+        setRewards([]);
+        setActiveEvent(null);
+        return;
+      }
 
-        supabase
-          .from("guest_entries")
-          .select("*", { count: "exact", head: true })
-          .eq("event_id", eventId),
-      ]);
+      setLoading(true);
 
-      setStats({
-        listCount: listRes.error ? 0 : listRes.count ?? 0,
-        entryCount: entryRes.error ? 0 : entryRes.count ?? 0,
-      });
-    } catch (err) {
-      console.error("Error cargando stats del evento:", err);
-      setStats({
-        entryCount: 0,
-        listCount: 0,
-      });
-    }
-  }
+      const [{ data: eventData }, { data: rewardsData, error: rewardsError }] =
+        await Promise.all([
+          supabase.from("events").select("id,name,status").eq("status", "active").maybeSingle(),
+          supabase
+            .from("holy_rewards")
+            .select("id,name,description,points_cost")
+            .eq("active", true)
+            .order("points_cost", { ascending: true })
+            .limit(8),
+        ]);
 
-  async function loadActiveEvent() {
-    setLoading(true);
+      setActiveEvent((eventData as EventRow | null) ?? null);
+      setRewards((rewardsData ?? []) as Reward[]);
 
-    const { data, error } = await supabase
-      .from("events")
-      .select(
-        "id, name, event_date, status, registration_until, qr_entry_until, created_by, created_at, closed_at, show_entry_count, show_list_count"
-      )
-      .eq("status", "active")
-      .maybeSingle();
+      if (rewardsError) {
+        console.error("Error cargando rewards del home:", rewardsError);
+      }
 
-    if (error) {
-      console.error("Error cargando evento activo:", error.message);
-      setActiveEvent(null);
-      setStats({
-        entryCount: 0,
-        listCount: 0,
-      });
       setLoading(false);
+    }
+
+    void loadHomeData();
+  }, [isGuest, supabase]);
+
+  useEffect(() => {
+    if (prevBalanceRef.current === realBalance) {
+      setAnimatedBalance(realBalance);
       return;
     }
 
-    setActiveEvent((data as EventRow | null) ?? null);
+    const start = prevBalanceRef.current;
+    const end = realBalance;
+    const duration = 650;
+    let startTime: number | null = null;
 
-    if (data?.id) {
-      await loadStats(data.id);
-    } else {
-      setStats({
-        entryCount: 0,
-        listCount: 0,
-      });
+    function step(timestamp: number) {
+      if (startTime === null) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const value = Math.round(start + (end - start) * eased);
+
+      setAnimatedBalance(value);
+
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        prevBalanceRef.current = end;
+      }
     }
 
-    setLoading(false);
+    requestAnimationFrame(step);
+  }, [realBalance]);
+
+  function markUserInteraction() {
+    setIsUserInteracting(true);
+
+    if (interactionTimeoutRef.current) {
+      clearTimeout(interactionTimeoutRef.current);
+    }
+
+    interactionTimeoutRef.current = setTimeout(() => {
+      setIsUserInteracting(false);
+    }, 4500);
+  }
+
+  function scrollToCard(index: number) {
+    const container = sliderRef.current;
+    if (!container) return;
+
+    const children = container.children;
+    if (!children[index]) return;
+
+    const el = children[index] as HTMLElement;
+
+    container.scrollTo({
+      left: el.offsetLeft - 12,
+      behavior: "smooth",
+    });
+
+    setActiveRewardIndex(index);
+  }
+
+  function goPrevReward() {
+    if (rewards.length === 0) return;
+    markUserInteraction();
+    scrollToCard(Math.max(activeRewardIndex - 1, 0));
+  }
+
+  function goNextReward() {
+    if (rewards.length === 0) return;
+    markUserInteraction();
+    scrollToCard(Math.min(activeRewardIndex + 1, rewards.length - 1));
+  }
+
+  function handleSliderScroll() {
+    const container = sliderRef.current;
+    if (!container) return;
+
+    const children = Array.from(container.children) as HTMLElement[];
+    if (children.length === 0) return;
+
+    const containerCenter = container.scrollLeft + container.clientWidth / 2;
+
+    let closestIndex = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    children.forEach((child, index) => {
+      const childCenter = child.offsetLeft + child.clientWidth / 2;
+      const distance = Math.abs(containerCenter - childCenter);
+
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+
+    setActiveRewardIndex((prev) =>
+      prev !== closestIndex ? closestIndex : prev
+    );
   }
 
   useEffect(() => {
-    void loadActiveEvent();
+    if (!rewards.length || isUserInteracting) return;
+
+    autoScrollRef.current = setInterval(() => {
+      setActiveRewardIndex((prev) => {
+        const nextIndex = prev >= rewards.length - 1 ? 0 : prev + 1;
+        scrollToCard(nextIndex);
+        return nextIndex;
+      });
+    }, 3200);
+
+    return () => {
+      if (autoScrollRef.current) clearInterval(autoScrollRef.current);
+    };
+  }, [rewards.length, isUserInteracting]);
+
+  useEffect(() => {
+    return () => {
+      if (autoScrollRef.current) clearInterval(autoScrollRef.current);
+      if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+    };
   }, []);
 
-  useEffect(() => {
-    if (!activeEvent?.id) return;
-
-    const interval = setInterval(() => {
-      void loadStats(activeEvent.id);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [activeEvent?.id]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("client-home-event-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "events" },
-        () => {
-          void loadActiveEvent();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [supabase]);
-
-  useEffect(() => {
-    if (!activeEvent?.id) return;
-
-    const channel = supabase
-      .channel("client-home-guests-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "guests" },
-        () => {
-          void loadStats(activeEvent.id);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [activeEvent?.id, supabase]);
-
-  useEffect(() => {
-    if (!activeEvent?.id) return;
-
-    const channel = supabase
-      .channel("client-home-entries-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "guest_entries" },
-        () => {
-          void loadStats(activeEvent.id);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [activeEvent?.id, supabase]);
-
-  const heroData = useMemo(() => {
-    if (!activeEvent) {
-      return {
-        title: "SIN EVENTO ACTIVO",
-        subtitle: "Todavía no hay evento cargado",
-        badge: "ESPERANDO EVENTO",
-        badgeClass: "border-white/15 bg-white/5 text-white/70",
-      };
-    }
-
-    if (activeEvent.status === "closed") {
-      return {
-        title: activeEvent.name,
-        subtitle: "🔴 EVENTO FINALIZADO",
-        badge: "CERRADO",
-        badgeClass: "border-red-400/30 bg-red-400/10 text-red-300",
-      };
-    }
-
-    const eventTs = activeEvent.event_date
-      ? new Date(activeEvent.event_date).getTime()
-      : null;
-
-    const regTs = activeEvent.registration_until
-      ? new Date(activeEvent.registration_until).getTime()
-      : null;
-
-    if (eventTs && now < eventTs) {
-      const countdownText = formatCountdown(eventTs - now);
-
-      return {
-        title: activeEvent.name,
-        subtitle:
-          countdownText === "🔥 POR COMENZAR"
-            ? "🔥 POR COMENZAR"
-            : `⏳ INICIA EN ${countdownText}`,
-        badge: regTs && now < regTs ? "LISTAS ABIERTAS" : "LISTAS CERRADAS",
-        badgeClass:
-          regTs && now < regTs
-            ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-            : "border-amber-400/30 bg-amber-400/10 text-amber-300",
-      };
-    }
-
-    return {
-      title: activeEvent.name,
-      subtitle: "🟢 EN VIVO",
-      badge: regTs && now < regTs ? "LISTAS ABIERTAS" : "LISTAS CERRADAS",
-      badgeClass:
-        regTs && now < regTs
-          ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-          : "border-amber-400/30 bg-amber-400/10 text-amber-300",
-    };
-  }, [activeEvent, now]);
-
-  const balance =
-    typeof (profile as any)?.holy_points_balance === "number"
-      ? (profile as any).holy_points_balance
-      : 0;
-
-  const eventEnergyText = useMemo(() => {
-    if (!activeEvent) return null;
-    if (!activeEvent.show_entry_count) return null;
-    if (stats.entryCount >= 300) return "🔥 HOLY explotando";
-    if (stats.entryCount >= 150) return "⚡ Muchísima gente adentro";
-    if (stats.entryCount >= 50) return "✨ El evento se está poniendo";
-    return null;
-  }, [activeEvent, stats.entryCount]);
-
   return (
-    <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-[32px] border border-fuchsia-500/30 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.28),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(139,92,246,0.18),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-6 shadow-[0_0_80px_rgba(168,85,247,0.22)] backdrop-blur-xl">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.15))]" />
-
-        <div className="relative">
-          <div className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-fuchsia-300">
-            <Sparkles className="h-3.5 w-3.5" />
-            Evento activo
-          </div>
-
-          <h2 className="mt-4 text-4xl font-black tracking-tight text-white">
-            {loading ? "Cargando..." : heroData.title}
-          </h2>
-
-          <div className="mt-3 min-h-[32px] text-lg font-semibold text-white/90">
-            {loading ? (
-              "Buscando evento..."
-            ) : heroData.subtitle === "🟢 EN VIVO" ? (
-              <div className="flex items-center gap-3">
-                <span className="relative flex h-3 w-3">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
-                </span>
-                <span className="text-white">EN VIVO</span>
-              </div>
-            ) : (
-              heroData.subtitle
-            )}
-          </div>
-
-          <div
-            className={`mt-4 inline-flex items-center rounded-full border px-4 py-2 text-sm font-bold ${heroData.badgeClass}`}
-          >
-            {heroData.badge}
-          </div>
-
-          {activeEvent ? (
-            <>
-              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur-md">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-                    Fecha del evento
+    <DashboardShell title="HOLY CLUB">
+      <div className="px-3 pb-24 pt-4 text-white">
+        <div className="space-y-3">
+          {isGuest && (
+            <div className="rounded-[28px] border border-amber-500/25 bg-amber-500/10 p-5">
+              <div className="flex gap-4">
+                <Lock className="mt-1 text-amber-300" />
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-amber-300">
+                    Modo invitado
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-white/90">
-                    {formatDate(activeEvent.event_date)}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur-md">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-                    Listas hasta
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-white/90">
-                    {formatDate(activeEvent.registration_until)}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur-md sm:col-span-2">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-                    QR entrada hasta
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-white/90">
-                    {formatDate(activeEvent.qr_entry_until)}
+                  <h2 className="font-bold text-white">Estás explorando la app</h2>
+                  <p className="text-sm text-amber-100/70">
+                    Iniciá sesión para usar créditos y beneficios.
                   </p>
                 </div>
               </div>
-
-              {(activeEvent.show_entry_count ||
-                activeEvent.show_list_count ||
-                eventEnergyText) && (
-                <div className="mt-4 space-y-3">
-                  {eventEnergyText ? (
-                    <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-300 shadow-[0_0_30px_rgba(251,191,36,0.08)]">
-                      {eventEnergyText}
-                    </div>
-                  ) : null}
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {activeEvent.show_entry_count ? (
-                      <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-emerald-300 shadow-[0_0_25px_rgba(52,211,153,0.07)]">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/70">
-                          Ingresaron
-                        </p>
-                        <div className="mt-2 flex items-end gap-2">
-                          <span className="text-3xl font-black">
-                            {stats.entryCount}
-                          </span>
-                          <span className="pb-1 text-sm font-semibold text-emerald-200/80">
-                            personas
-                          </span>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {activeEvent.show_list_count ? (
-                      <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/10 p-4 text-fuchsia-300 shadow-[0_0_25px_rgba(217,70,239,0.08)]">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-fuchsia-200/70">
-                          En lista
-                        </p>
-                        <div className="mt-2 flex items-end gap-2">
-                          <span className="text-3xl font-black">
-                            {stats.listCount}
-                          </span>
-                          <span className="pb-1 text-sm font-semibold text-fuchsia-200/80">
-                            anotados
-                          </span>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="relative overflow-hidden rounded-[28px] border border-violet-400/20 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.22),transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-6 shadow-[0_0_60px_rgba(168,85,247,0.14)]">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.12))]" />
-
-        <div className="relative flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">
-              Tus créditos
-            </p>
-            <div className="mt-2 text-5xl font-black tracking-tight text-white">
-              {balance.toLocaleString("es-AR")}
-            </div>
-            <p className="mt-2 max-w-sm text-sm text-white/60">
-              Sumás créditos al ingresar a eventos y luego podés canjearlos.
-            </p>
-          </div>
-
-          <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-black/20 text-violet-300 sm:flex">
-            <Trophy className="h-6 w-6" />
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-3">
-        <ActionCard
-          href="/dashboard/puntos"
-          icon={Gift}
-          title="Ver recompensas"
-          subtitle="Canjear premios con tus créditos"
-        />
-
-        <ActionCard
-          href="/dashboard/puntos/movimientos"
-          icon={Clock3}
-          title="Ver movimientos"
-          subtitle="Historial de sumas y canjes"
-        />
-
-        <ActionCard
-          href="/dashboard/puntos"
-          icon={QrCode}
-          title="Mis canjes / QR"
-          subtitle="Ver QR pendientes para mostrar"
-        />
-      </section>
-
-      {activeEvent ? (
-        <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-5 shadow-[0_10px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-          <div className="mb-4 flex items-center gap-2 text-white">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-fuchsia-300">
-              <CalendarDays className="h-5 w-5" />
-            </div>
-            <h3 className="text-lg font-semibold">Detalle del evento</h3>
-          </div>
-
-          <div className="grid gap-3 text-sm sm:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-                Nombre
-              </p>
-              <p className="mt-2 font-semibold text-white/90">
-                {activeEvent.name}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-                Fecha
-              </p>
-              <p className="mt-2 font-semibold text-white/90">
-                {formatDate(activeEvent.event_date)}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-                Listas hasta
-              </p>
-              <p className="mt-2 font-semibold text-white/90">
-                {formatDate(activeEvent.registration_until)}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">
-                QR entrada hasta
-              </p>
-              <p className="mt-2 font-semibold text-white/90">
-                {formatDate(activeEvent.qr_entry_until)}
-              </p>
-            </div>
-
-            {activeEvent.show_entry_count ? (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/70">
-                  Ingresaron
-                </p>
-                <p className="mt-2 text-xl font-black text-emerald-300">
-                  {stats.entryCount}
-                </p>
-              </div>
-            ) : null}
-
-            {activeEvent.show_list_count ? (
-              <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/10 p-4">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-fuchsia-200/70">
-                  En lista
-                </p>
-                <p className="mt-2 text-xl font-black text-fuchsia-300">
-                  {stats.listCount}
-                </p>
-              </div>
-            ) : null}
-          </div>
-
-          {(activeEvent.show_entry_count || activeEvent.show_list_count) && (
-            <div className="mt-4 flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-300">
-              <Flame className="h-4 w-4" />
-              Números actualizados en vivo, sin recargar la página.
             </div>
           )}
-        </section>
-      ) : null}
-    </div>
+
+          <div className="rounded-[30px] border border-fuchsia-500/25 bg-white/5 p-5 shadow-[0_0_60px_rgba(217,70,239,0.15)]">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-fuchsia-300">
+              <Sparkles size={14} />
+              Hoy en HOLY
+            </div>
+
+            <h2 className="mt-3 text-3xl font-black">
+              {loading ? "Cargando..." : activeEvent?.name || "SIN EVENTO"}
+            </h2>
+
+            <p className="mt-2 text-sm text-white/60">
+              {isGuest
+                ? "Entrá para usar beneficios"
+                : "Lista activa, rewards disponibles y todo listo para esta noche."}
+            </p>
+          </div>
+
+          <div className="rounded-[28px] border border-white/10 bg-white/5 p-5">
+            <p className="text-xs uppercase tracking-wider text-white/40">
+              Tus créditos
+            </p>
+
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <HolyCoin size={48} />
+                <span className="bg-[radial-gradient(circle,rgba(255,255,255,0.16),transparent_70%)] bg-clip-text text-5xl font-black leading-none text-white">
+                  {animatedBalance.toLocaleString("es-AR")}
+                </span>
+              </div>
+
+              <span className="rounded-full bg-fuchsia-500/10 px-3 py-1 text-xs text-fuchsia-300">
+                CRÉDITOS
+              </span>
+            </div>
+          </div>
+
+     
+
+          <div className="space-y-3">
+            <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10">
+                    <Instagram size={18} className="text-fuchsia-400" />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-bold">Seguinos</p>
+                    <p className="text-xs text-white/50">@holy.club</p>
+                  </div>
+                </div>
+
+                <a
+                  href="https://instagram.com/holy.club"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-fuchsia-600 px-4 py-2 text-sm font-bold active:scale-95"
+                >
+                  Seguir
+                </a>
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10">
+                    <MessageCircle size={18} className="text-emerald-300" />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-bold">Escribinos</p>
+                    <p className="text-xs text-white/50">2984 22-9239</p>
+                  </div>
+                </div>
+
+                <a
+                  href="https://wa.me/5492984229239"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold active:scale-95"
+                >
+                  WhatsApp
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4">
+            <div className="pointer-events-none absolute left-1/2 top-0 h-28 w-40 -translate-x-1/2 rounded-full bg-fuchsia-500/15 blur-3xl" />
+
+            <div className="relative z-10">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-200">
+                    <Zap size={12} />
+                    Top canje
+                  </div>
+
+                  <h3 className="text-lg font-black text-white">
+                    {activeReward?.name ?? "Canjes HOLY"}
+                  </h3>
+
+                  <p className="mt-1 text-xs text-white/45">
+                    Canjeá desde 5.000 créditos
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={goPrevReward}
+                    disabled={activeRewardIndex === 0}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/80 disabled:opacity-35"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    onClick={goNextReward}
+                    disabled={
+                      rewards.length === 0 ||
+                      activeRewardIndex === rewards.length - 1
+                    }
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/80 disabled:opacity-35"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {!isGuest && (
+                <div className="mb-3 rounded-[20px] border border-white/10 bg-black/20 p-3">
+                  {nextGoal ? (
+                    <>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold text-white/80">
+                          Te faltan{" "}
+                          <span className="text-fuchsia-300">
+                            {(nextGoal - realBalance).toLocaleString("es-AR")}
+                          </span>{" "}
+                          créditos para el próximo objetivo
+                        </p>
+
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
+                          {nextGoal.toLocaleString("es-AR")}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-violet-400 to-cyan-400 transition-all duration-500"
+                          style={{ width: `${progressToGoal}%` }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs font-semibold text-amber-200">
+                      Ya estás en rango alto. Es momento de romperla en canjes.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {rewards.length === 0 ? (
+                <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-5 text-center text-sm text-white/50">
+                  No hay rewards disponibles ahora.
+                </div>
+              ) : (
+                <>
+                  <div
+                    ref={sliderRef}
+                    onScroll={handleSliderScroll}
+                    onTouchStart={markUserInteraction}
+                    onMouseDown={markUserInteraction}
+                    className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                  >
+                    {rewards.map((reward, index) => {
+                      const isActive = index === activeRewardIndex;
+                      const tier = getTierStyles(reward.points_cost, isActive);
+                      const tierLabel = getTierLabel(reward.points_cost);
+                      const RewardIcon = getRewardIcon(reward.name);
+
+                      return (
+                        <div
+                          key={reward.id}
+                          className="min-w-0 shrink-0 basis-[66%] snap-center"
+                        >
+                          <div
+                            className={`relative overflow-hidden rounded-[24px] border p-3 transition duration-300 ${tier.wrap} ${
+                              isActive
+                                ? "shadow-[0_0_35px_rgba(217,70,239,0.16)]"
+                                : ""
+                            }`}
+                          >
+                            <div
+                              className={`pointer-events-none absolute -left-8 top-0 h-16 w-16 rounded-full blur-3xl ${tier.glow}`}
+                            />
+                            <div
+                              className={`pointer-events-none absolute bottom-0 right-0 h-16 w-16 rounded-full blur-3xl ${tier.glow}`}
+                            />
+
+                            <div className="relative z-10 flex aspect-square flex-col">
+                              <div className="flex items-center justify-between gap-2">
+                                <span
+                                  className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.2em] ${tier.badge}`}
+                                >
+                                  {tierLabel}
+                                </span>
+
+                                <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/35">
+                                  HOLY
+                                </span>
+                              </div>
+
+                              <div className="flex flex-1 flex-col items-center justify-center text-center">
+                                <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-[18px] border border-white/10 bg-black/20 shadow-[0_0_24px_rgba(255,255,255,0.05)]">
+                                  <RewardIcon className={`h-7 w-7 ${tier.accent}`} />
+                                </div>
+
+                                <h4 className="max-w-[92%] text-base font-black leading-tight text-white">
+                                  {reward.name}
+                                </h4>
+
+                                <p className="mt-1 line-clamp-2 text-[11px] text-white/50">
+                                  {reward.description || "Canjeable en HOLY."}
+                                </p>
+                              </div>
+
+                              <div className="mt-auto flex items-end justify-between gap-3">
+                                <div>
+                                  <p className="text-[9px] uppercase tracking-[0.18em] text-white/35">
+                                    Precio
+                                  </p>
+                                  <p className="text-xl font-black text-white">
+                                    {reward.points_cost.toLocaleString("es-AR")}
+                                  </p>
+                                </div>
+
+                                <Link
+                                  href="/dashboard/puntos"
+                                  className={`rounded-2xl border px-3 py-2 text-[11px] font-bold transition ${tier.button}`}
+                                >
+                                  Canjear
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    {rewards.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          markUserInteraction();
+                          scrollToCard(index);
+                        }}
+                        className={`h-2.5 rounded-full transition ${
+                          index === activeRewardIndex
+                            ? "w-6 bg-white"
+                            : "w-2.5 bg-white/20"
+                        }`}
+                        aria-label={`Ir al reward ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+
+                  <Link href="/dashboard/puntos" className="mt-4 block">
+                    <div className="rounded-[22px] border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3 text-center text-sm font-bold text-fuchsia-200 transition active:scale-[0.99]">
+                      Ver todos los beneficios
+                    </div>
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </DashboardShell>
   );
 }

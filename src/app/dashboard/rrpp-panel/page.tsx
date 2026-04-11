@@ -1,277 +1,803 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toPng } from "html-to-image";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 import { useActiveEvent } from "@/hooks/useActiveEvent";
-import { useRanking } from "@/hooks/useRanking";
+import { useRrppStats } from "@/hooks/useRrppStats";
 import {
-  Users, Trophy, Copy, Check, ToggleLeft, ToggleRight,
-  ChevronDown, ChevronUp, UserCheck, Clock
+  Copy,
+  Check,
+  Users,
+  LogIn,
+  Trophy,
+  Zap,
+  Wine,
+  GlassWater,
+  Share2,
+  ChevronDown,
+  ChevronUp,
+  UserCheck,
+  Clock,
+  Link2,
+  Image as ImageIcon,
 } from "lucide-react";
 import type { RrppProfile, GuestRegistration } from "@/types";
 
-interface RrppWithStats extends RrppProfile {
-  registered: number;
-  checkedIn: number;
-}
-
-export default function RrppAdminPanel() {
-  const { event } = useActiveEvent();
-  const { ranking } = useRanking(event?.id);
-  const [rrpps, setRrpps] = useState<RrppWithStats[]>([]);
+export default function RrppPage() {
+  const [rrpp, setRrpp] = useState<RrppProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [guests, setGuests] = useState<Record<string, GuestRegistration[]>>({});
-  const [copied, setCopied] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showGuests, setShowGuests] = useState(false);
+  const [guests, setGuests] = useState<GuestRegistration[]>([]);
+  const [generating, setGenerating] = useState(false);
+
+  const storyRef = useRef<HTMLDivElement>(null);
+
+  const { event } = useActiveEvent();
+  const { stats } = useRrppStats(rrpp?.id, event?.id);
+  const { profile: authProfile, loading: authLoading } = useAuth();
+  const router = useRouter();
   const supabase = getSupabaseClient();
 
-  const appUrl = typeof window !== "undefined" ? window.location.origin : "";
+  useEffect(() => {
+    if (authLoading) return;
+    if (!authProfile) {
+      router.push("/login");
+      return;
+    }
+    if (authProfile.role !== "rrpp") {
+      router.push("/dashboard");
+      return;
+    }
 
-  useEffect(() => { fetchAll(); }, [event]);
-
-  async function fetchAll() {
-    setLoading(true);
-    const { data: rrppList } = await supabase
+    supabase
       .from("rrpp_profiles")
       .select("*")
-      .order("display_name", { ascending: true });
+      .eq("profile_id", authProfile.id)
+      .single()
+      .then(({ data }) => {
+        setRrpp(data);
+        setLoading(false);
+      });
+  }, [authProfile, authLoading, router, supabase]);
 
-    if (!rrppList) { setLoading(false); return; }
+  useEffect(() => {
+    if (!showGuests || !rrpp || !event) return;
 
-    // Get stats for each RRPP
-    if (event) {
-      const stats = await Promise.all(
-        rrppList.map(async r => {
-          const [{ count: regCount }, { data: checkinData }] = await Promise.all([
-            supabase.from("guest_registrations").select("id", { count: "exact" })
-              .eq("rrpp_id", r.id).eq("event_id", event.id),
-            supabase.from("checkins").select("result")
-              .eq("event_id", event.id)
-              .in("registration_id",
-                (await supabase.from("guest_registrations")
-                  .select("id").eq("rrpp_id", r.id).eq("event_id", event.id)
-                ).data?.map(g => g.id) || []
-              )
-          ]);
-          return {
-            ...r,
-            registered: regCount || 0,
-            checkedIn: checkinData?.filter(c => c.result === "valid_entry").length || 0,
-          };
-        })
-      );
-      setRrpps(stats);
-    } else {
-      setRrpps(rrppList.map(r => ({ ...r, registered: 0, checkedIn: 0 })));
-    }
-    setLoading(false);
-  }
-
-  async function toggleActive(rrpp: RrppWithStats) {
-    await supabase.from("rrpp_profiles").update({ active: !rrpp.active }).eq("id", rrpp.id);
-    fetchAll();
-  }
-
-  async function loadGuests(rrppId: string) {
-    if (!event) return;
-    if (guests[rrppId]) return; // already loaded
-    const { data } = await supabase
+    supabase
       .from("guest_registrations")
       .select("*")
-      .eq("rrpp_id", rrppId)
+      .eq("rrpp_id", rrpp.id)
       .eq("event_id", event.id)
-      .order("created_at", { ascending: false });
-    setGuests(prev => ({ ...prev, [rrppId]: (data as GuestRegistration[]) || [] }));
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setGuests((data as GuestRegistration[]) || []));
+  }, [showGuests, rrpp, event, supabase]);
+
+  useEffect(() => {
+    if (!rrpp || !event) return;
+
+    const ch = supabase
+      .channel(`rrpp-guests-${rrpp.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "guest_registrations",
+          filter: `rrpp_id=eq.${rrpp.id}`,
+        },
+        async () => {
+          const { data } = await supabase
+            .from("guest_registrations")
+            .select("*")
+            .eq("rrpp_id", rrpp.id)
+            .eq("event_id", event.id)
+            .order("created_at", { ascending: false });
+
+          setGuests((data as GuestRegistration[]) || []);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [rrpp, event, supabase]);
+
+  const appUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const myLink = rrpp ? `${appUrl}/lista/${rrpp.slug}` : "";
+  const bottle = stats.rewards.find((r) => r.reward_type === "bottle");
+  const trigger = bottle?.trigger_count ?? 35;
+  const pct = Math.min((stats.checkedIn / trigger) * 100, 100);
+
+  function copyLink() {
+    if (!myLink) return;
+    navigator.clipboard.writeText(myLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
-  function toggleExpand(id: string) {
-    if (expanded === id) { setExpanded(null); return; }
-    setExpanded(id);
-    loadGuests(id);
+  async function shareLink() {
+    if (!myLink || !navigator.share) return;
+    await navigator
+      .share({
+        title: "Anotate en Holy Club",
+        text: "Anotate en mi lista para esta noche en HOLY.",
+        url: myLink,
+      })
+      .catch(() => {});
   }
 
-  function copyLink(slug: string) {
-    navigator.clipboard.writeText(`${appUrl}/lista/${slug}`);
-    setCopied(slug);
-    setTimeout(() => setCopied(null), 2000);
+  async function generateStory() {
+    if (!storyRef.current || !rrpp) return;
+
+    try {
+      setGenerating(true);
+
+      const dataUrl = await toPng(storyRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+      });
+
+      const link = document.createElement("a");
+      link.download = `holy-story-${rrpp.slug || "rrpp"}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error("Error generando historia:", error);
+    } finally {
+      setGenerating(false);
+    }
   }
 
-  function getRankPos(rrppId: string) {
-    return ranking.find(r => r.rrpp_id === rrppId)?.position;
+  if (loading) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-background">
+        <Zap className="w-10 h-10 text-accent-purple animate-pulse" />
+      </div>
+    );
   }
-
-  // Sort: by checkin count desc
-  const sorted = [...rrpps].sort((a, b) => b.checkedIn - a.checkedIn);
 
   return (
-    <div className="px-4 py-6 space-y-5 max-w-lg mx-auto animate-fade-in">
-      <div>
-        <h1 className="font-display text-2xl font-black tracking-widest text-white flex items-center gap-2">
-          <Users className="w-6 h-6 text-accent-purple" /> RRPP
-        </h1>
-        <p className="text-text-muted text-sm mt-1">
-          {rrpps.filter(r => r.active).length} activos · {rrpps.length} total
-        </p>
-      </div>
+    <div className="min-h-dvh bg-background mesh-bg">
+      <main className="px-4 py-6 space-y-5 max-w-sm mx-auto pb-10">
+        {rrpp && (
+          <div className="holy-card bg-gradient-card">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Link2 className="w-3.5 h-3.5 text-accent-purple" />
+              <p className="holy-label mb-0">MI LINK</p>
+            </div>
 
-      {/* Summary cards */}
-      {event && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="stat-card">
-            <span className="stat-label">Anotados total</span>
-            <span className="stat-value">{rrpps.reduce((s,r) => s + r.registered, 0)}</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Ingresos total</span>
-            <span className="stat-value text-success">{rrpps.reduce((s,r) => s + r.checkedIn, 0)}</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">RRPP activos</span>
-            <span className="stat-value text-accent-pink">{rrpps.filter(r => r.active).length}</span>
-          </div>
-        </div>
-      )}
+            <div className="flex items-center gap-2 bg-background/60 rounded-xl px-3 py-2.5 mb-2">
+              <span className="text-sm text-accent-purple flex-1 truncate font-mono">
+                {myLink}
+              </span>
 
-      {/* RRPP list */}
-      {loading ? (
-        <div className="holy-card py-10 text-center">
-          <div className="w-8 h-8 border-2 border-accent-purple/30 border-t-accent-purple rounded-full animate-spin mx-auto" />
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sorted.map((r, i) => {
-            const pos = getRankPos(r.id);
-            const link = `${appUrl}/lista/${r.slug}`;
-            const isExpanded = expanded === r.id;
-            const guestList = guests[r.id] || [];
-
-            return (
-              <div
-                key={r.id}
-                className={`holy-card transition-all duration-200 ${
-                  !r.active ? "opacity-50" : ""
-                } ${i === 0 && event ? "border-accent-purple/30 bg-gradient-card" : ""}`}
+              <button
+                onClick={copyLink}
+                className="flex-shrink-0 p-1.5 rounded-lg bg-card border border-border text-text-muted hover:text-accent-purple transition-colors"
               >
-                {/* Main row */}
-                <div className="flex items-center gap-3">
-                  {/* Position badge */}
-                  {event && pos && pos <= 3 ? (
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${
-                      pos === 1 ? "bg-yellow-500 text-black" :
-                      pos === 2 ? "bg-slate-400 text-black" : "bg-amber-700 text-white"
-                    }`}>
-                      {["🥇","🥈","🥉"][pos-1]}
-                    </div>
-                  ) : event ? (
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-card border border-border flex-shrink-0">
-                      <span className="font-display text-xs font-bold text-text-muted">
-                        {pos ? `#${pos}` : "–"}
-                      </span>
-                    </div>
-                  ) : null}
+                {copied ? (
+                  <Check className="w-4 h-4 text-success" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </button>
+            </div>
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-text-primary truncate">{r.display_name}</p>
-                      {!r.active && (
-                        <span className="text-[10px] bg-text-muted/20 text-text-muted px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                          OFF
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-accent-purple font-mono">/lista/{r.slug}</p>
-                  </div>
+            {copied && (
+              <p className="text-success text-xs animate-fade-in">
+                ✓ Link copiado al portapapeles
+              </p>
+            )}
 
-                  {/* Stats */}
-                  {event && (
-                    <div className="text-right flex-shrink-0">
-                      <p className="font-display text-xl font-black text-success">{r.checkedIn}</p>
-                      <p className="text-[10px] text-text-muted">{r.registered} anotados</p>
-                    </div>
-                  )}
-                </div>
+            <div className="grid grid-cols-1 gap-2 mt-3">
+              <button
+                onClick={copyLink}
+                className="holy-btn-primary py-3 text-xs"
+              >
+                <Copy className="w-3.5 h-3.5 inline mr-1.5" />
+                COPIAR LINK
+              </button>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2 mt-3">
-                  <button
-                    onClick={() => copyLink(r.slug)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-background border border-border text-text-muted hover:text-accent-purple hover:border-accent-purple/50 transition-colors text-xs font-semibold"
-                  >
-                    {copied === r.slug
-                      ? <><Check className="w-3.5 h-3.5 text-success" /> Copiado</>
-                      : <><Copy className="w-3.5 h-3.5" /> Copiar link</>}
-                  </button>
+              <button
+                onClick={generateStory}
+                disabled={generating}
+                className="holy-btn-secondary py-3 text-xs disabled:opacity-60"
+              >
+                <ImageIcon className="w-3.5 h-3.5 inline mr-1.5" />
+                {generating ? "GENERANDO..." : "GENERAR HISTORIA"}
+              </button>
 
-                  <button
-                    onClick={() => toggleActive(r)}
-                    className={`flex items-center gap-1.5 py-2 px-3 rounded-xl border transition-colors text-xs font-semibold ${
-                      r.active
-                        ? "bg-success/10 border-success/30 text-success hover:bg-danger/10 hover:border-danger/30 hover:text-danger"
-                        : "bg-card border-border text-text-muted hover:bg-success/10 hover:border-success/30 hover:text-success"
+              {typeof navigator !== "undefined" && "share" in navigator && (
+                <button
+                  onClick={shareLink}
+                  className="holy-btn-secondary py-3 text-xs"
+                >
+                  <Share2 className="w-3.5 h-3.5 inline mr-1.5" />
+                  COMPARTIR LINK
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!event && (
+          <div className="holy-card text-center py-8">
+            <Clock className="w-10 h-10 mx-auto mb-2 text-text-muted opacity-30" />
+            <p className="text-text-muted">Sin evento activo esta noche</p>
+          </div>
+        )}
+
+        {event && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="stat-card">
+              <div className="flex items-center gap-1 mb-1">
+                <Users className="w-3.5 h-3.5 text-accent-purple" />
+                <span className="stat-label">Anotados</span>
+              </div>
+              <span className="stat-value">{stats.registered}</span>
+            </div>
+
+            <div className="stat-card">
+              <div className="flex items-center gap-1 mb-1">
+                <LogIn className="w-3.5 h-3.5 text-success" />
+                <span className="stat-label">Ingresos</span>
+              </div>
+              <span className="stat-value text-success">
+                {stats.checkedIn}
+              </span>
+            </div>
+
+            <div className="stat-card">
+              <div className="flex items-center gap-1 mb-1">
+                <Trophy className="w-3.5 h-3.5 text-gold" />
+                <span className="stat-label">Posición</span>
+              </div>
+              <span className="stat-value text-gold">
+                {stats.position > 0 ? `#${stats.position}` : "–"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {event && bottle && (
+          <div
+            className={`holy-card ${
+              bottle.status === "unlocked"
+                ? "border-success/40 bg-success/5"
+                : ""
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Wine
+                  className={`w-5 h-5 ${
+                    bottle.status === "unlocked"
+                      ? "text-success"
+                      : "text-accent-purple"
+                  }`}
+                />
+                <span className="font-display text-sm font-bold tracking-widest text-white">
+                  {bottle.title.toUpperCase()}
+                </span>
+              </div>
+
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest border ${
+                  bottle.status === "unlocked"
+                    ? "bg-success/20 text-success border-success/30"
+                    : bottle.status === "redeemed"
+                    ? "bg-text-muted/20 text-text-muted border-text-muted/30"
+                    : "bg-card text-text-muted border-border"
+                }`}
+              >
+                {bottle.status === "locked"
+                  ? `${stats.checkedIn}/${trigger}`
+                  : bottle.status === "unlocked"
+                  ? "🎉 GANADO"
+                  : "✓ CANJEADO"}
+              </span>
+            </div>
+
+            <div className="h-3 bg-background rounded-full overflow-hidden mb-2">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ease-out ${
+                  bottle.status === "unlocked" || bottle.status === "redeemed"
+                    ? "bg-success"
+                    : "bg-gradient-purple"
+                }`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+
+            <p className="text-xs text-text-muted">
+              {bottle.status === "locked"
+                ? `Faltan ${Math.max(
+                    0,
+                    trigger - stats.checkedIn
+                  )} ingresos para desbloquear`
+                : bottle.status === "unlocked"
+                ? "¡Mostrá el QR de abajo en la barra!"
+                : "Premio ya canjeado esta noche"}
+            </p>
+          </div>
+        )}
+
+        {event &&
+          stats.rewards.find((r) => r.status === "unlocked" && r.qr_token) && (
+            <div className="holy-card bg-success/5 border-success/30 text-center">
+              <p className="font-display text-sm font-bold tracking-widest text-success mb-4 flex items-center justify-center gap-2">
+                <Wine className="w-4 h-4" /> QR PARA CANJEAR TU PREMIO
+              </p>
+
+              <div className="bg-white rounded-2xl p-5 inline-block mx-auto mb-3 shadow-[0_0_30px_rgba(34,197,94,0.3)]">
+                <img
+                  alt="placeholder"
+                  src={`data:image/svg+xml;utf8,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'></svg>")}`}
+                  className="hidden"
+                />
+              </div>
+
+              <p className="text-text-muted text-xs">
+                Presentalo en la barra para reclamar
+              </p>
+            </div>
+          )}
+
+        {event && stats.benefits.length > 0 && (
+          <div id="beneficios" className="holy-card scroll-mt-24">
+            <p className="holy-label flex items-center gap-1.5 mb-3">
+              <GlassWater className="w-3.5 h-3.5 text-accent-purple" />
+              Beneficios de la noche
+            </p>
+
+            <div className="space-y-2">
+              {stats.benefits.map((b) => (
+                <div
+                  key={b.id}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl ${
+                    b.status === "redeemed"
+                      ? "bg-background/30 opacity-60"
+                      : "bg-accent-purple/10 border border-accent-purple/20"
+                  }`}
+                >
+                  <span className="text-sm font-semibold">{b.title}</span>
+                  <span
+                    className={`text-xs font-bold uppercase tracking-widest ${
+                      b.status === "redeemed"
+                        ? "text-text-muted"
+                        : "text-accent-purple"
                     }`}
                   >
-                    {r.active
-                      ? <><ToggleRight className="w-4 h-4" /> Activo</>
-                      : <><ToggleLeft className="w-4 h-4" /> Inactivo</>}
-                  </button>
+                    {b.status === "redeemed" ? "CANJEADO" : "DISPONIBLE ✓"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-                  {event && (
-                    <button
-                      onClick={() => toggleExpand(r.id)}
-                      className="p-2 rounded-xl bg-background border border-border text-text-muted hover:text-text-primary transition-colors"
+        {event && (
+          <button
+            onClick={() => setShowGuests(!showGuests)}
+            className="holy-btn-secondary flex items-center justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              MI LISTA ({stats.registered} anotados)
+            </span>
+            {showGuests ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+          </button>
+        )}
+
+        {showGuests && event && (
+          <div className="holy-card animate-slide-up">
+            {guests.length === 0 ? (
+              <div className="text-center py-6">
+                <Users className="w-8 h-8 mx-auto mb-2 text-text-muted opacity-30" />
+                <p className="text-text-muted text-sm">Nadie anotado todavía</p>
+                <p className="text-text-muted text-xs mt-1">
+                  Compartí tu link para que se anoten
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                {guests.map((g, i) => (
+                  <div
+                    key={g.id}
+                    className="flex items-center justify-between py-2.5 border-b border-border/30 last:border-0"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-text-muted w-5 font-mono">
+                        {i + 1}
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-text-primary leading-none">
+                          {g.first_name} {g.last_name}
+                        </p>
+                        <p className="text-xs text-text-muted mt-0.5 font-mono">
+                          DNI ···{g.dni_last3}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg ${
+                        g.registration_status === "checked_in"
+                          ? "bg-success/20 text-success"
+                          : "bg-card text-text-muted"
+                      }`}
                     >
-                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </button>
-                  )}
+                      {g.registration_status === "checked_in" ? (
+                        <>
+                          <UserCheck className="w-3 h-3" /> Ingresó
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-3 h-3" /> Pendiente
+                        </>
+                      )}
+                    </span>
+                  </div>
+                ))}
+
+                {guests.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const text = guests
+                        .map((g, i) => `${i + 1}. ${g.first_name} ${g.last_name}`)
+                        .join("\n");
+
+                      navigator.clipboard.writeText(text);
+                    }}
+                    className="holy-btn-primary mt-4 w-full py-3 text-xs"
+                  >
+                    📋 COPIAR LISTA COMPLETA
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="fixed -left-[99999px] top-0 pointer-events-none opacity-0">
+          <div
+            ref={storyRef}
+            style={{
+              width: 1080,
+              height: 1920,
+              background:
+                "radial-gradient(circle at 50% 0%, rgba(217,70,239,0.28), transparent 30%), linear-gradient(180deg, #06060a 0%, #100317 55%, #050507 100%)",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "Arial, sans-serif",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "radial-gradient(circle at 20% 20%, rgba(217,70,239,0.20), transparent 22%), radial-gradient(circle at 80% 18%, rgba(168,85,247,0.18), transparent 18%), radial-gradient(circle at 50% 80%, rgba(217,70,239,0.12), transparent 28%)",
+              }}
+            />
+
+            <div
+              style={{
+                width: 930,
+                height: 1680,
+                borderRadius: 56,
+                padding: 4,
+                background:
+                  "linear-gradient(135deg, rgba(244,114,182,0.95) 0%, rgba(217,70,239,0.92) 38%, rgba(168,85,247,0.92) 72%, rgba(244,114,182,0.95) 100%)",
+                boxShadow:
+                  "0 0 90px rgba(217,70,239,0.22), inset 0 0 24px rgba(255,255,255,0.12)",
+                position: "relative",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 18,
+                  borderRadius: 42,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  pointerEvents: "none",
+                }}
+              />
+
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: 52,
+                  background:
+                    "linear-gradient(180deg, rgba(9,9,11,0.96) 0%, rgba(20,6,30,0.96) 58%, rgba(7,7,10,0.98) 100%)",
+                  padding: "72px 62px 62px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: -120,
+                    right: -120,
+                    width: 320,
+                    height: 320,
+                    borderRadius: "50%",
+                    background: "rgba(217,70,239,0.12)",
+                    filter: "blur(30px)",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: -140,
+                    left: -80,
+                    width: 280,
+                    height: 280,
+                    borderRadius: "50%",
+                    background: "rgba(168,85,247,0.12)",
+                    filter: "blur(34px)",
+                  }}
+                />
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 18,
+                      padding: "18px 24px",
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      boxShadow: "0 0 30px rgba(217,70,239,0.10)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 18,
+                        background:
+                          "linear-gradient(135deg, rgba(244,114,182,1) 0%, rgba(217,70,239,1) 45%, rgba(168,85,247,1) 100%)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#09090b",
+                        fontSize: 28,
+                        fontWeight: 900,
+                        boxShadow: "0 0 26px rgba(217,70,239,0.35)",
+                      }}
+                    >
+                      H
+                    </div>
+
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 22,
+                          letterSpacing: "0.34em",
+                          color: "#f0abfc",
+                          fontWeight: 800,
+                        }}
+                      >
+                        HOLY CLUB
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: 17,
+                          color: "rgba(255,255,255,0.55)",
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          fontWeight: 700,
+                        }}
+                      >
+                        Lista RRPP
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "14px 20px",
+                      borderRadius: 999,
+                      background: "rgba(217,70,239,0.12)",
+                      border: "1px solid rgba(217,70,239,0.30)",
+                      color: "#f5d0fe",
+                      fontSize: 16,
+                      fontWeight: 800,
+                      letterSpacing: "0.18em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    VIP ACCESS
+                  </div>
                 </div>
 
-                {/* Expanded guest list */}
-                {isExpanded && event && (
-                  <div className="mt-4 pt-4 border-t border-border animate-slide-up">
-                    <p className="holy-label mb-2">
-                      Lista de invitados — {guestList.length} anotados
-                    </p>
-                    {guestList.length === 0 ? (
-                      <p className="text-text-muted text-xs text-center py-4">
-                        Sin invitados anotados todavía
-                      </p>
-                    ) : (
-                      <div className="space-y-0.5 max-h-64 overflow-y-auto">
-                        {guestList.map((g, gi) => (
-                          <div
-                            key={g.id}
-                            className={`flex items-center justify-between py-2 border-b border-border/30 last:border-0 ${
-                              g.registration_status === "checked_in" ? "opacity-100" : "opacity-70"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-text-muted w-5 font-mono">{gi + 1}</span>
-                              <div>
-                                <p className="text-sm font-semibold leading-none">
-                                  {g.first_name} {g.last_name}
-                                </p>
-                                <p className="text-xs text-text-muted font-mono">···{g.dni_last3}</p>
-                              </div>
-                            </div>
-                            <span className={`flex items-center gap-1 text-xs font-semibold ${
-                              g.registration_status === "checked_in" ? "text-success" : "text-text-muted"
-                            }`}>
-                              {g.registration_status === "checked_in"
-                                ? <><UserCheck className="w-3 h-3" /> Ingresó</>
-                                : <><Clock className="w-3 h-3" /> Pendiente</>}
-                            </span>
-                          </div>
-                        ))}
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                  <div
+                    style={{
+                      fontSize: 122,
+                      lineHeight: 0.9,
+                      fontWeight: 900,
+                      letterSpacing: "-0.05em",
+                      textTransform: "uppercase",
+                      textShadow: "0 0 40px rgba(217,70,239,0.16)",
+                    }}
+                  >
+                    ANOTATE
+                    <br />
+                    EN MI
+                    <br />
+                    LISTA
+                  </div>
+
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignSelf: "flex-start",
+                      padding: "18px 28px",
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.07)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      color: "#f5d0fe",
+                      fontSize: 30,
+                      fontWeight: 800,
+                      boxShadow: "0 0 30px rgba(255,255,255,0.04)",
+                    }}
+                  >
+                    {rrpp?.display_name || "RRPP HOLY"}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 16,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "16px 24px",
+                        borderRadius: 999,
+                        background: "rgba(217,70,239,0.14)",
+                        border: "1px solid rgba(217,70,239,0.32)",
+                        color: "#f5d0fe",
+                        fontSize: 22,
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        boxShadow: "0 0 28px rgba(217,70,239,0.14)",
+                      }}
+                    >
+                      Lista free hasta 2:30 AM
+                    </div>
+
+                    <div
+                      style={{
+                        padding: "16px 24px",
+                        borderRadius: 999,
+                        background: "rgba(34,197,94,0.16)",
+                        border: "1px solid rgba(34,197,94,0.34)",
+                        color: "#86efac",
+                        fontSize: 22,
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        boxShadow: "0 0 28px rgba(34,197,94,0.14)",
+                      }}
+                    >
+                      Sumá créditos si tenés cuenta
+                    </div>
+
+                    {event?.name && (
+                      <div
+                        style={{
+                          padding: "16px 24px",
+                          borderRadius: 999,
+                          background: "rgba(59,130,246,0.16)",
+                          border: "1px solid rgba(59,130,246,0.34)",
+                          color: "#93c5fd",
+                          fontSize: 22,
+                          fontWeight: 800,
+                          letterSpacing: "0.05em",
+                          boxShadow: "0 0 28px rgba(59,130,246,0.14)",
+                        }}
+                      >
+                        EVENTO: {event.name}
                       </div>
                     )}
                   </div>
-                )}
+
+                  <div
+                    style={{
+                      marginTop: 4,
+                      fontSize: 34,
+                      lineHeight: 1.34,
+                      color: "rgba(255,255,255,0.88)",
+                      maxWidth: 720,
+                    }}
+                  >
+                    Entrá desde mi link y anotate para esta noche.
+                    <br />
+                    Tu QR se genera después del registro.
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    borderRadius: 36,
+                    padding: "34px 30px",
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.035))",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    boxShadow:
+                      "0 0 60px rgba(217,70,239,0.10), inset 0 0 20px rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 21,
+                      letterSpacing: "0.18em",
+                      textTransform: "uppercase",
+                      color: "rgba(255,255,255,0.52)",
+                      marginBottom: 16,
+                      fontWeight: 800,
+                    }}
+                  >
+                    Entrá desde mi link
+                  </div>
+
+                  <div
+                    style={{
+                      borderRadius: 22,
+                      padding: "22px 24px",
+                      background: "rgba(10,10,12,0.55)",
+                      border: "1px solid rgba(217,70,239,0.16)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 24,
+                        color: "#f0abfc",
+                        wordBreak: "break-word",
+                        fontWeight: 800,
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      {myLink}
+                    </div>
+                  </div>
+                </div>
               </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
-      )}
+      </main>
     </div>
   );
 }

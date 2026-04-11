@@ -19,12 +19,12 @@ export default function BottomNav() {
 
   const role = profile?.role;
 
-  const canSeeBarScanner =
+  const canSeeScanner =
     role === "admin" ||
     role === "bar" ||
     role === "cashier";
 
-  const homeHref = canSeeBarScanner
+  const homeHref = canSeeScanner
     ? "/dashboard"
     : "/dashboard/puntos/home";
 
@@ -43,21 +43,32 @@ export default function BottomNav() {
     },
   ];
 
-  if (canSeeBarScanner) {
+  if (canSeeScanner) {
     items.splice(3, 0, {
       href: "/dashboard/scanner",
-      label: "BARRA",
+      label: "SCAN QR",
       icon: ScanLine,
     });
   }
 
+  const isActive = (href: string) => {
+    if (href === "/dashboard/scanner") {
+      return pathname.startsWith("/dashboard/scanner");
+    }
+    return pathname === href;
+  };
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-fuchsia-500/20 bg-[#1a0123]/95 backdrop-blur-xl">
       <div className="mx-auto w-full max-w-7xl px-2 py-2">
-        <div className="grid grid-cols-5 items-center gap-2">
+        <div
+          className={`grid items-center gap-2 ${
+            items.length === 5 ? "grid-cols-5" : "grid-cols-4"
+          }`}
+        >
           {items.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active = isActive(item.href);
 
             return (
               <Link

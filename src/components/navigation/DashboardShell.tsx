@@ -1,165 +1,601 @@
 "use client";
 
-import { ReactNode, useMemo, useEffect, useState } from "react";
+import { ReactNode, useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Home, Gift, History, Sparkles, ScanLine } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import {
+  Home,
+  Gift,
+  History,
+  Sparkles,
+  UserCircle2,
+  LogOut,
+  ScanLine,
+  MoreVertical,
+  Trophy,
+  Link2,
+  Martini,
+  QrCode,
+  Clock3,
+  Shield,
+  CalendarPlus2,
+  ClipboardList,
+  Ticket,
+  X,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import HolyCoin from "@/components/ui/HolyCoin";
 
-interface DashboardShellProps {
-  children: ReactNode;
-  title?: string;
-  onlineCount?: number;
-}
-
-type NavItem = {
+type MenuEntry = {
   href: string;
   label: string;
-  icon: any;
-  match?: (pathname: string) => boolean;
+  icon: React.ComponentType<{ className?: string }>;
 };
+
+function SidebarLink({
+  href,
+  label,
+  icon: Icon,
+  active,
+  onClick,
+}: MenuEntry & {
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold transition duration-200 ${
+        active
+          ? "bg-fuchsia-500/22 text-fuchsia-200 shadow-[0_0_28px_rgba(217,70,239,0.24)]"
+          : "text-white/82 hover:bg-white/8"
+      }`}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span>{label}</span>
+    </Link>
+  );
+}
 
 export default function DashboardShell({
   children,
   title,
-  onlineCount = 128,
-}: DashboardShellProps) {
+}: {
+  children: ReactNode;
+  title?: string;
+}) {
   const pathname = usePathname();
-  const { profile } = useAuth();
+  const searchParams = useSearchParams();
+  const { profile, user, signOut } = useAuth();
 
-  const role = profile?.role;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
 
-  const canSeeBarScanner =
-    role === "admin" ||
-    role === "bar" ||
-    role === "cashier";
+  const headerRef = useRef<HTMLDivElement | null>(null);
 
-  const isClientView =
-    pathname.startsWith("/dashboard/puntos") ||
-    pathname.startsWith("/dashboard/beneficios");
+  const credits = Number((profile as any)?.holy_points_balance ?? 0);
+  const role = String((profile as any)?.role || "").toLowerCase();
 
-  const profileCredits = Number((profile as any)?.holy_points_balance ?? 0);
-  const [liveCredits, setLiveCredits] = useState(profileCredits);
+  const isAdmin =
+    role === "admin" || role === "cashier" || role === "cajero";
+  const isRrpp = role === "rrpp";
+  const isClient = !isAdmin && !isRrpp;
+
+  const displayName =
+    String((profile as any)?.full_name || "").trim() ||
+    String((profile as any)?.name || "").trim() ||
+    String((profile as any)?.username || "").trim() ||
+    user?.email?.split("@")[0]?.toUpperCase() ||
+    "USUARIO";
+
+  const roleLabel = isAdmin ? "ADMIN" : isRrpp ? "RRPP" : "CLIENTE";
+  const currentTab = searchParams.get("tab") || "";
 
   useEffect(() => {
-    setLiveCredits(profileCredits);
-  }, [profileCredits]);
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 18);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
-    function onCreditsUpdated(event: Event) {
-      const customEvent = event as CustomEvent<number>;
-      if (typeof customEvent.detail === "number") {
-        setLiveCredits(customEvent.detail);
+    function updateHeaderHeight() {
+      if (headerRef.current) {
+        setHeaderHeight(headerRef.current.offsetHeight);
       }
     }
 
-    window.addEventListener(
-      "holy-credits-updated",
-      onCreditsUpdated as EventListener
-    );
+    updateHeaderHeight();
+
+    const raf = requestAnimationFrame(updateHeaderHeight);
+    window.addEventListener("resize", updateHeaderHeight);
 
     return () => {
-      window.removeEventListener(
-        "holy-credits-updated",
-        onCreditsUpdated as EventListener
-      );
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", updateHeaderHeight);
     };
-  }, []);
+  }, [scrolled]);
 
-  const navItems = useMemo<NavItem[]>(() => {
-    const homeHref = canSeeBarScanner
-      ? "/dashboard"
-      : "/dashboard/puntos/home";
+  const bottomNavItems = [
+    { href: "/dashboard/puntos/home", label: "HOME", icon: Home },
+    { href: "/dashboard/puntos", label: "CANJEAR", icon: Gift },
+    {
+      href: "/dashboard/puntos/movimientos",
+      label: "MOVIM.",
+      icon: History,
+    },
+    isAdmin
+      ? { href: "/dashboard/scanner", label: "SCAN QR", icon: ScanLine }
+      : { href: "/dashboard/beneficios", label: "BENEF.", icon: Sparkles },
+    { href: "/dashboard/perfil", label: "PERFIL", icon: UserCircle2 },
+  ];
 
-    const base: NavItem[] = [
-      {
-        href: homeHref,
-        label: "HOME",
-        icon: Home,
-        match: (p) =>
-          p === "/dashboard" ||
-          p === "/dashboard/puntos" ||
-          p === "/dashboard/puntos/home",
-      },
-      {
-        href: "/dashboard/puntos",
-        label: "CANJEAR",
-        icon: Gift,
-        match: (p) => p === "/dashboard/puntos",
-      },
-      {
-        href: "/dashboard/puntos/movimientos",
-        label: "ULT. MOV.",
-        icon: History,
-        match: (p) => p.startsWith("/dashboard/puntos/movimientos"),
-      },
-      {
-        href: "/dashboard/beneficios",
-        label: "BENEF.",
-        icon: Sparkles,
-        match: (p) => p.startsWith("/dashboard/beneficios"),
-      },
-    ];
+  const clientItems: MenuEntry[] = [
+    { href: "/dashboard/perfil", label: "Perfil", icon: UserCircle2 },
+    { href: "/dashboard/puntos", label: "Canjear", icon: Gift },
+    {
+      href: "/dashboard/puntos/movimientos?tab=movimientos",
+      label: "Ult movimientos",
+      icon: Clock3,
+    },
+    {
+      href: "/dashboard/puntos/movimientos?tab=qr",
+      label: "Mis QR",
+      icon: QrCode,
+    },
+    {
+      href: "/dashboard/beneficios",
+      label: "Beneficios",
+      icon: Sparkles,
+    },
+  ];
 
-    if (canSeeBarScanner && !isClientView) {
-      base.splice(3, 0, {
-        href: "/dashboard/scanner",
-        label: "BARRA",
-        icon: ScanLine,
-        match: (p) => p.startsWith("/dashboard/scanner"),
-      });
+  const rrppItems: MenuEntry[] = [
+    { href: "/dashboard/perfil", label: "Perfil", icon: UserCircle2 },
+    {
+      href: "/dashboard/rrpp-panel",
+      label: "Mis links lista",
+      icon: Link2,
+    },
+    { href: "/dashboard/ranking", label: "Ranking", icon: Trophy },
+    {
+      href: "/dashboard/rrpp-consumiciones",
+      label: "Mis Consumiciones",
+      icon: Martini,
+    },
+    {
+      href: "/dashboard/puntos/movimientos?tab=movimientos",
+      label: "Ult movimientos",
+      icon: Clock3,
+    },
+    {
+      href: "/dashboard/puntos/movimientos?tab=qr",
+      label: "Mis QR",
+      icon: QrCode,
+    },
+    {
+      href: "/dashboard/beneficios",
+      label: "Beneficios",
+      icon: Sparkles,
+    },
+  ];
+
+  const adminItems: MenuEntry[] = [
+    { href: "/dashboard/perfil", label: "Perfil", icon: UserCircle2 },
+    {
+      href: "/dashboard/admin/puntos",
+      label: "Agregar creditos / Rol",
+      icon: Shield,
+    },
+    {
+      href: "/dashboard/admin/eventos/crear",
+      label: "Crear evento",
+      icon: CalendarPlus2,
+    },
+    {
+      href: "/dashboard/admin/eventos/resumen",
+      label: "Resumen evento",
+      icon: ClipboardList,
+    },
+    {
+      href: "/dashboard/scanner",
+      label: "Scanner QR",
+      icon: ScanLine,
+    },
+    {
+      href: "/dashboard/gold",
+      label: "Invitaciones GOLD",
+      icon: Ticket,
+    },
+    { href: "/dashboard/puntos", label: "Canjear", icon: Gift },
+    {
+      href: "/dashboard/puntos/movimientos?tab=movimientos",
+      label: "Ult movimientos",
+      icon: Clock3,
+    },
+    {
+      href: "/dashboard/puntos/movimientos?tab=qr",
+      label: "Mis QR",
+      icon: QrCode,
+    },
+    {
+      href: "/dashboard/beneficios",
+      label: "Beneficios",
+      icon: Sparkles,
+    },
+  ];
+
+  function isHrefActive(href: string) {
+    const [basePath, queryString] = href.split("?");
+
+    if (pathname !== basePath) return false;
+    if (!queryString) return true;
+
+    const params = new URLSearchParams(queryString);
+    const hrefTab = params.get("tab");
+
+    if (hrefTab) return currentTab === hrefTab;
+
+    return true;
+  }
+
+  async function handleLogout() {
+    await signOut();
+    window.location.href = "/login";
+  }
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
+
+  function openMenu() {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(18);
     }
-
-    return base;
-  }, [canSeeBarScanner, isClientView]);
+    setMenuOpen(true);
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
-      <div className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          <div className="text-lg font-bold tracking-wide">
-            {title || "HOLY CLUB"}
+    <div className="min-h-screen bg-[#050507] pb-24 text-white">
+      <style jsx global>{`
+        @keyframes holyMenuButtonPulse {
+          0% {
+            box-shadow:
+              0 0 0 rgba(217, 70, 239, 0),
+              0 0 0 rgba(217, 70, 239, 0);
+          }
+          50% {
+            box-shadow:
+              0 0 20px rgba(217, 70, 239, 0.35),
+              0 0 38px rgba(168, 85, 247, 0.2);
+          }
+          100% {
+            box-shadow:
+              0 0 12px rgba(217, 70, 239, 0.18),
+              0 0 26px rgba(168, 85, 247, 0.14);
+          }
+        }
+
+        @keyframes holyWiggle {
+          0%,
+          100% {
+            transform: rotate(0deg);
+          }
+          20% {
+            transform: rotate(-6deg);
+          }
+          40% {
+            transform: rotate(5deg);
+          }
+          60% {
+            transform: rotate(-4deg);
+          }
+          80% {
+            transform: rotate(3deg);
+          }
+        }
+
+        @keyframes holySidebarOverlayIn {
+          0% {
+            opacity: 0;
+            backdrop-filter: blur(0px);
+          }
+          100% {
+            opacity: 1;
+            backdrop-filter: blur(2px);
+          }
+        }
+
+        @keyframes holySidebarIn {
+          0% {
+            transform: translateX(-36px) scale(0.985);
+            opacity: 0;
+          }
+          65% {
+            transform: translateX(6px) scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+          }
+        }
+
+        @keyframes holyHeaderGlow {
+          0%,
+          100% {
+            opacity: 0.55;
+          }
+          50% {
+            opacity: 0.9;
+          }
+        }
+
+        .holy-menu-button {
+          animation: holyMenuButtonPulse 2.2s ease-in-out infinite;
+        }
+
+        .holy-menu-button:hover .holy-menu-dots,
+        .holy-menu-button:active .holy-menu-dots {
+          animation: holyWiggle 0.35s ease-in-out;
+        }
+
+        .holy-sidebar-overlay-enter {
+          animation: holySidebarOverlayIn 0.22s ease-out;
+        }
+
+        .holy-sidebar-enter {
+          animation: holySidebarIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+          transform-origin: left center;
+        }
+
+        .holy-header-glow {
+          animation: holyHeaderGlow 2.8s ease-in-out infinite;
+        }
+      `}</style>
+
+      <div
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-black/78 backdrop-blur-2xl"
+      >
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px holy-header-glow bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent" />
+
+        <div
+          className={`mx-auto flex max-w-6xl items-center justify-between px-4 transition-all duration-300 ${
+            scrolled ? "py-2" : "py-3"
+          }`}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <div
+              className={`flex shrink-0 items-center justify-center rounded-2xl border border-fuchsia-400/25 bg-fuchsia-500/15 shadow-[0_0_24px_rgba(217,70,239,0.32)] transition-all duration-300 ${
+                scrolled ? "h-9 w-9" : "h-11 w-11"
+              }`}
+            >
+              <span
+                className={`font-black text-fuchsia-200 transition-all duration-300 ${
+                  scrolled ? "text-[14px]" : "text-[17px]"
+                }`}
+              >
+                H
+              </span>
+            </div>
+
+            <button
+              onClick={openMenu}
+              className={`holy-menu-button flex shrink-0 items-center justify-center rounded-2xl border border-fuchsia-400/25 bg-fuchsia-500/10 text-white/80 transition-all duration-300 hover:scale-[1.04] hover:bg-fuchsia-500/18 hover:text-white active:scale-95 ${
+                scrolled ? "h-9 w-9" : "h-11 w-11"
+              }`}
+              aria-label="Abrir menú"
+            >
+              <MoreVertical
+                className={`holy-menu-dots transition-all duration-300 ${
+                  scrolled ? "h-4 w-4" : "h-[18px] w-[18px]"
+                }`}
+              />
+            </button>
+
+            <div className="ml-1 min-w-0">
+              <div
+                className={`uppercase tracking-[0.30em] text-fuchsia-300 transition-all duration-300 ${
+                  scrolled ? "text-[9px]" : "text-[11px]"
+                }`}
+              >
+                HOLY CLUB
+              </div>
+              <div
+                className={`truncate font-black transition-all duration-300 ${
+                  scrolled
+                    ? "text-[16px] sm:text-[17px]"
+                    : "text-[18px] sm:text-[19px]"
+                }`}
+              >
+                {title || "HOLY CLUB"}
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1 rounded-full">
-              EN LÍNEA {onlineCount}
+          <div
+            className={`flex shrink-0 items-center gap-2 rounded-full border border-fuchsia-400/25 bg-gradient-to-r from-fuchsia-500/18 to-violet-500/12 shadow-[0_0_28px_rgba(217,70,239,0.22)] transition-all duration-300 ${
+              scrolled ? "px-3 py-1.5" : "px-3.5 py-2"
+            }`}
+          >
+            <div
+              className={`flex items-center justify-center rounded-full bg-fuchsia-500 shadow-[0_0_18px_rgba(217,70,239,0.40)] transition-all duration-300 ${
+                scrolled ? "h-8 w-8" : "h-9 w-9"
+              }`}
+            >
+              <HolyCoin size={scrolled ? 17 : 19} />
             </div>
 
-            <div className="bg-fuchsia-500/20 text-fuchsia-300 text-xs px-3 py-1 rounded-full">
-              {liveCredits.toLocaleString("es-AR")} CRÉDITOS
-            </div>
+            <span
+              className={`font-black leading-none transition-all duration-300 ${
+                scrolled ? "text-[14px]" : "text-[15px]"
+              }`}
+            >
+              {credits.toLocaleString("es-AR")}
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="pt-16">
+      {menuOpen && (
+        <>
+          <button
+            aria-label="Cerrar menú"
+            className="holy-sidebar-overlay-enter fixed inset-0 z-[60] bg-black/60 backdrop-blur-[2px]"
+            onClick={closeMenu}
+          />
+
+          <aside className="holy-sidebar-enter fixed top-0 left-0 z-[70] flex h-full w-[88%] max-w-[372px] flex-col border-r border-fuchsia-500/15 bg-[linear-gradient(180deg,#160722_0%,#0f081b_58%,#09070f_100%)] shadow-[0_0_70px_rgba(0,0,0,0.52)]">
+            <div className="border-b border-white/10 px-5 pb-5 pt-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-fuchsia-400/25 bg-fuchsia-500/12 shadow-[0_0_36px_rgba(217,70,239,0.24)]">
+                    <span className="text-lg font-black text-fuchsia-200">
+                      H
+                    </span>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="truncate text-[18px] font-black uppercase">
+                      {displayName}
+                    </div>
+                    <div className="mt-1 inline-flex items-center rounded-full border border-fuchsia-400/25 bg-fuchsia-500/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-fuchsia-200">
+                      {roleLabel}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={closeMenu}
+                  className="rounded-full p-2 text-white/70 transition hover:bg-white/10 hover:text-white active:scale-95"
+                  aria-label="Cerrar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-fuchsia-400/15 bg-white/5 px-4 py-3.5 shadow-[0_0_24px_rgba(217,70,239,0.10)]">
+                <div className="mb-1 text-[11px] uppercase tracking-[0.24em] text-white/45">
+                  Puntos
+                </div>
+                <div className="flex items-center gap-2">
+                  <HolyCoin size={24} />
+                  <span className="text-[22px] font-black">
+                    {credits.toLocaleString("es-AR")}
+                  </span>
+                </div>
+                {user?.email ? (
+                  <div className="mt-2 truncate text-xs text-white/45">
+                    {user.email}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
+              {isClient && (
+                <section>
+                  <div className="mb-3 px-2 text-[11px] font-bold uppercase tracking-[0.22em] text-fuchsia-300/85">
+                    Cliente
+                  </div>
+                  <div className="space-y-2">
+                    {clientItems.map((item) => (
+                      <SidebarLink
+                        key={item.label}
+                        {...item}
+                        active={isHrefActive(item.href)}
+                        onClick={closeMenu}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {isRrpp && (
+                <section>
+                  <div className="mb-3 px-2 text-[11px] font-bold uppercase tracking-[0.22em] text-fuchsia-300/85">
+                    RRPP
+                  </div>
+                  <div className="space-y-2">
+                    {rrppItems.map((item) => (
+                      <SidebarLink
+                        key={item.label}
+                        {...item}
+                        active={isHrefActive(item.href)}
+                        onClick={closeMenu}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {isAdmin && (
+                <section>
+                  <div className="mb-3 px-2 text-[11px] font-bold uppercase tracking-[0.22em] text-fuchsia-300/85">
+                    Admin
+                  </div>
+                  <div className="space-y-2">
+                    {adminItems.map((item) => (
+                      <SidebarLink
+                        key={item.label}
+                        {...item}
+                        active={isHrefActive(item.href)}
+                        onClick={closeMenu}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+
+            <div className="border-t border-white/10 p-4">
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-semibold text-red-300 transition hover:bg-red-500/10 hover:text-red-200 active:scale-[0.99]"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Cerrar Sesión</span>
+              </button>
+            </div>
+          </aside>
+        </>
+      )}
+
+      <div
+        style={{ marginTop: headerHeight + 4 }}
+        className="transition-all duration-300"
+      >
         {children}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-fuchsia-500/20 bg-[#1a0123]/95 backdrop-blur-xl">
-        <div className="mx-auto w-full max-w-7xl px-2 py-2">
-          <div className="grid grid-cols-5 items-center gap-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = item.match?.(pathname);
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-fuchsia-500/20 bg-[#12041b]/90 backdrop-blur-xl">
+        <div className="grid grid-cols-5 px-2 py-2">
+          {bottomNavItems.map((item) => {
+            const active = pathname === item.href;
+            const Icon = item.icon;
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex min-h-[62px] flex-col items-center justify-center rounded-2xl px-2 py-2 text-[10px] font-semibold transition ${
-                    active
-                      ? "bg-fuchsia-500 text-white shadow-[0_0_20px_rgba(217,70,239,0.35)]"
-                      : "text-white/70 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <Icon className="mb-1 h-4 w-4" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex flex-col items-center justify-center rounded-xl py-2 text-[10px] font-bold transition-all duration-200 ${
+                  active
+                    ? "bg-fuchsia-500/20 text-fuchsia-200"
+                    : "text-white/50"
+                }`}
+              >
+                <Icon className="mb-1 h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
         </div>
       </div>
     </div>

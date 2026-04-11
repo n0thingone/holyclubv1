@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Orbitron } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -21,17 +21,23 @@ export const metadata: Metadata = {
   description: "Sistema de gestión — Holy Club",
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   themeColor: "#0b0716",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="es" className="dark">
-      <body className={`${spaceGrotesk.variable} ${orbitron.variable} font-sans bg-background text-text-primary antialiased`}>
+      <body
+        className={`${spaceGrotesk.variable} ${orbitron.variable} font-sans bg-background text-text-primary antialiased`}
+      >
         <AuthProvider>
           {children}
           <Toaster />

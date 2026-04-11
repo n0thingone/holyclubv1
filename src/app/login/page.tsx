@@ -1,204 +1,190 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Chrome, UserRound, Sparkles } from "lucide-react";
 import { getSupabaseClient } from "@/lib/supabase/client";
-import { useAuth } from "@/context/AuthContext";
-import { Eye, EyeOff, Zap } from "lucide-react";
-
-const USERNAME_MAP: Record<string, string> = {
-  n0thing: "n0thing@holyclub.com",
-  franco: "franco@holyclub.com",
-  claudia: "claudia@holyclub.com",
-  diego: "diego@holyclub.com",
-  kiara: "kiara@holyclub.com",
-  agustin: "agustin@holyclub.com",
-  matias: "matias@holyclub.com",
-  valentin: "valentin@holyclub.com",
-  anto: "anto@holyclub.com",
-  camila: "camila@holyclub.com",
-  julieta: "julieta@holyclub.com",
-  antonella: "antonella@holyclub.com",
-  abril: "abril@holyclub.com",
-  valen: "valen@holyclub.com",
-  maar: "maar@holyclub.com",
-  celina: "celina@holyclub.com",
-  azul: "azul@holyclub.com",
-  lucia: "lucia@holyclub.com",
-  josema: "josema@holyclub.com",
-};
-
-function resolveEmail(input: string): string {
-  const lower = input.toLowerCase().trim();
-  return USERNAME_MAP[lower] ?? (input.includes("@") ? input : `${lower}@holyclub.com`);
-}
-
-function getDestination(role?: string | null) {
-  if (role === "cashier") return "/dashboard/scanner";
-  if (role === "bar") return "/dashboard/bar";
-  if (role === "rrpp") return "/rrpp";
-  return "/dashboard";
-}
 
 export default function LoginPage() {
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  const { profile, loading } = useAuth();
+  const supabase = getSupabaseClient();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && profile) {
-      router.replace(getDestination(profile.role));
-    }
-  }, [profile, loading, router]);
+  const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [stageText, setStageText] = useState("Preparando acceso...");
+  const [stageColor, setStageColor] = useState("text-fuchsia-300");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (submitting) return;
-
-    setSubmitting(true);
-    setError("");
-
-    const supabase = getSupabaseClient();
-
+  async function handleGoogleLogin() {
     try {
-      const email = resolveEmail(identifier);
+      setLoading(true);
+      setError(null);
 
-      await supabase.auth.signOut();
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("holy_guest");
+      }
 
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const steps = [
+        { text: "Buscando si estás en la lista...", color: "text-white" },
+        { text: "Mmm... ahí estás 👀", color: "text-yellow-300" },
+        { text: "Preparando tu entrada FREE...", color: "text-fuchsia-300" },
+        { text: "Cargando temazos 🔊", color: "text-green-300" },
+        { text: "Guardando lugar en la pista...", color: "text-blue-300" },
+        { text: "A tu novio/a no le va a gustar esto...", color: "text-red-400" },
+        { text: "Dale que ya entras...", color: "text-orange-300" },
+        { text: "Listo, pasá 😈", color: "text-fuchsia-200" },
+      ];
+
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        setStageText(step.text);
+        setStageColor(step.color);
+
+        if (step.text.includes("novio")) {
+          if (navigator.vibrate) {
+            navigator.vibrate([50, 30, 50]);
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, i === steps.length - 1 ? 850 : 650));
+      }
+
+      if (navigator.vibrate) {
+        navigator.vibrate([80, 40, 120, 40, 180]);
+      }
+
+      try {
+        await audioRef.current?.play();
+      } catch {
+        // algunos navegadores bloquean audio
+      }
+
+      await new Promise((r) => setTimeout(r, 400));
+
+      const redirectTo = `${window.location.origin}/auth/callback`;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
       });
 
-      if (authError) {
-        console.error("[LOGIN_ERROR]", authError);
-        setError("Usuario o contraseña incorrectos");
-        setSubmitting(false);
-        return;
+      if (error) throw error;
+    } catch (err: any) {
+      console.error(err);
+      setError("Error al iniciar sesión.");
+      setLoading(false);
+      setStageText("Preparando acceso...");
+      setStageColor("text-fuchsia-300");
+    }
+  }
+
+  async function handleGuestLogin() {
+    try {
+      setGuestLoading(true);
+      setError(null);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("holy_guest", "true");
       }
 
-      const session = data.session;
-
-      if (!session?.user?.email) {
-        setError("No se pudo crear la sesión");
-        setSubmitting(false);
-        return;
-      }
-
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("email", session.user.email)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error("[PROFILE_ROLE_ERROR]", profileError);
-        setError("La sesión se creó, pero no se pudo cargar el perfil");
-        setSubmitting(false);
-        return;
-      }
-
-      router.replace(getDestination(profileData?.role));
-      router.refresh();
-    } catch (err) {
-      console.error("[LOGIN_FATAL]", err);
-      setError("Error al iniciar sesión");
-      setSubmitting(false);
+      router.push("/dashboard/puntos/home");
+    } catch {
+      setGuestLoading(false);
+      setError("No se pudo continuar como invitado.");
     }
   }
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center bg-background mesh-bg px-4">
-      <div className="mb-10 text-center animate-fade-in">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-purple shadow-purple mb-4">
-          <Zap className="w-10 h-10 text-black" fill="black" />
-        </div>
-
-        <h1 className="font-display text-5xl font-black tracking-widest text-white glow-text">
-          HOLY
-        </h1>
-
-        <p className="text-text-muted text-xs tracking-[0.4em] uppercase mt-2">
-          Club System · Staff Only
-        </p>
+    <main className="relative flex min-h-screen items-center justify-center bg-black px-4 text-white">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute left-1/2 top-1/3 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 h-[280px] w-[280px] -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
       </div>
 
-      <div className="w-full max-w-sm animate-slide-up">
-        <div className="holy-card">
-          <form onSubmit={handleLogin} className="space-y-4">
+      <div className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-fuchsia-300">
+            <Sparkles size={14} />
+            Inicio
+          </div>
 
-            <div>
-              <label className="holy-label">Usuario</label>
-              <input
-                type="text"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                className="holy-input"
-                placeholder="Ingrese su cuenta"
-                required
-                autoCapitalize="none"
-                autoCorrect="off"
-                autoComplete="username"
-              />
+          <h1 className="mt-4 text-4xl font-black tracking-widest">
+            HOLY CLUB
+          </h1>
+
+          <p className="mt-3 text-sm text-white/60">
+            Entrá a tu cuenta y viví la experiencia.
+          </p>
+        </div>
+
+        <div className="mt-8 space-y-3">
+          <button
+            onClick={handleGoogleLogin}
+            disabled={loading || guestLoading}
+            className="w-full rounded-xl bg-white py-4 font-bold text-black transition hover:scale-[1.02] disabled:opacity-70"
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Chrome size={18} />
+              {loading ? "Ingresando..." : "Continuar con Google"}
+            </div>
+          </button>
+
+          <button
+            onClick={handleGuestLogin}
+            disabled={loading || guestLoading}
+            className="w-full rounded-xl bg-fuchsia-500/20 py-4 font-bold transition hover:scale-[1.02] disabled:opacity-70"
+          >
+            <div className="flex items-center justify-center gap-2">
+              <UserRound size={18} />
+              {guestLoading ? "..." : "Seguir como invitado"}
+            </div>
+          </button>
+
+          {error && (
+            <p className="text-center text-sm text-red-400">{error}</p>
+          )}
+        </div>
+      </div>
+
+      {loading && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+          <div className="absolute h-[320px] w-[320px] animate-pulse rounded-full bg-fuchsia-500/20 blur-3xl" />
+
+          <div className="relative px-6 text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-2 border-fuchsia-400 shadow-[0_0_40px_rgba(217,70,239,0.35)]">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-t-white border-fuchsia-400" />
             </div>
 
-            <div>
-              <label className="holy-label">Contraseña</label>
-              <div className="relative">
-                <input
-                  type={showPass ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="holy-input pr-12"
-                  placeholder="••••••••"
-                  required
-                  autoComplete="current-password"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-accent-purple transition-colors p-1"
-                >
-                  {showPass ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <div className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 text-danger text-sm animate-scale-in">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting || loading}
-              className="holy-btn-primary mt-2"
+            <h2
+              className={`mt-6 font-bold transition-all duration-300 ${
+                stageText.includes("novio")
+                  ? "scale-110 text-2xl text-red-400 drop-shadow-[0_0_12px_rgba(248,113,113,0.55)]"
+                  : `text-xl ${stageColor}`
+              }`}
             >
-              {submitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                  Ingresando...
-                </span>
-              ) : (
-                "ENTRAR"
-              )}
-            </button>
+              {stageText}
+            </h2>
 
-          </form>
+            <div className="mx-auto mt-4 h-2 w-44 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full w-2/3 animate-pulse bg-fuchsia-400 shadow-[0_0_20px_rgba(217,70,239,0.55)]" />
+            </div>
+          </div>
         </div>
+      )}
 
-        <p className="text-center text-text-muted/40 text-xs mt-8 tracking-widest uppercase">
-          © Holy Club — Uso interno
-        </p>
-      </div>
-    </div>
+      <audio
+        ref={audioRef}
+        preload="auto"
+        src="/sounds/holy-access.mp3"
+      />
+    </main>
   );
 }

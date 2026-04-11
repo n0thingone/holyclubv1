@@ -45,11 +45,13 @@ export interface GuestRegistration {
   id: string;
   event_id: string;
   rrpp_id: string;
+  user_id: string | null;
   first_name: string;
   last_name: string;
   dni_last3: string;
   qr_token: string;
   registration_status: RegistrationStatus;
+  entry_points_awarded: boolean;
   created_at: string;
   rrpp_profiles?: RrppProfile;
 }
