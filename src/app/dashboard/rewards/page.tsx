@@ -15,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import DashboardShell from "@/components/navigation/DashboardShell";
-import { createClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabase/client";
 
 type Reward = {
   id: string;
@@ -28,7 +28,7 @@ type Reward = {
 };
 
 export default function RewardsPage() {
-  const supabase = createClient();
+  const supabase = getSupabaseClient();
 
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [loading, setLoading] = useState(true);

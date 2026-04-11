@@ -139,9 +139,9 @@ export default function BarraScannerPage() {
         const token = parseToken(rawValue);
         setLastToken(token);
 
-        const { data, error } = await supabase.rpc("redeem_reward_qr", {
-          p_qr_token: token,
-        });
+       const { data, error } = await (supabase as any).rpc("redeem_reward_qr", {
+  p_qr_token: token,
+});
 
         if (error) {
           const failResult: RedeemResponse = {

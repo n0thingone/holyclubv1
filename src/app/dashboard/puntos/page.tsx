@@ -15,9 +15,9 @@ import {
   Trophy,
   Beer,
   Martini,
-  Pizza,
-  Hamburger,
-  Crown,
+ Pizza,
+UtensilsCrossed,
+Crown,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -105,7 +105,7 @@ function getRewardIcon(name: string) {
   if (n.includes("cerveza") || n.includes("pinta")) return Beer;
   if (n.includes("trago")) return Martini;
   if (n.includes("pizza")) return Pizza;
-  if (n.includes("burger") || n.includes("hamb")) return Hamburger;
+  if (n.includes("burger") || n.includes("hamb")) return UtensilsCrossed;
   if (n.includes("vip")) return Crown;
 
   return Gift;
