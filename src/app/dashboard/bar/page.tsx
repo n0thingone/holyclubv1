@@ -144,12 +144,17 @@ export default function ScannerPage() {
     }
 
     // 🔥 FREE (guest)
-    const { data: g } = await supabase
-      .from("guest_registrations")
-      .select("*")
-      .eq("qr_token", cleanToken)
-      .eq("event_id", eventId)
-      .maybeSingle();
+ const { data: g } = await supabase
+  .from("guest_registrations")
+  .select("*")
+  .eq("qr_token", cleanToken)
+  .eq("event_id", eventId)
+  .maybeSingle<{
+    id: string;
+    first_name: string;
+    last_name: string;
+    registration_status: string | null;
+  }>();
 
     if (!g) {
       return {
@@ -169,7 +174,7 @@ export default function ScannerPage() {
       };
     }
 
-    if (g.registration_status === "checked_in") {
+   if (g?.registration_status === "checked_in") {
       return {
         success: false,
         result: "used_qr",
@@ -187,10 +192,10 @@ export default function ScannerPage() {
       };
     }
 
-    await supabase
-      .from("guest_registrations")
-      .update({ registration_status: "checked_in" })
-      .eq("id", g.id);
+  await (supabase as any)
+  .from("guest_registrations")
+  .update({ registration_status: "checked_in" })
+  .eq("id", g.id);
 
     return {
       success: true,
