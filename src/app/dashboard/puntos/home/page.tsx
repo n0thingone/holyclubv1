@@ -14,7 +14,7 @@ import {
   Beer,
   Martini,
   Pizza,
-  Hamburger,
+  UtensilsCrossed,
   Crown,
   Zap,
 } from "lucide-react";
@@ -73,7 +73,7 @@ function getRewardIcon(name: string) {
   if (n.includes("cerveza") || n.includes("pinta")) return Beer;
   if (n.includes("trago")) return Martini;
   if (n.includes("pizza")) return Pizza;
-  if (n.includes("burger") || n.includes("hamb")) return Hamburger;
+  if (n.includes("burger") || n.includes("hamb")) return UtensilsCrossed;
   if (n.includes("vip") || n.includes("gold") || n.includes("entrada")) {
     return Crown;
   }
