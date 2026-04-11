@@ -442,7 +442,7 @@ export default function ScanPage() {
       .select("result")
       .eq("event_id", event.id);
 
-  if (error || !data) return;
+if (error || !data) return;
 
 const checks = (data ?? []) as Array<{ result: string }>;
 
@@ -452,7 +452,7 @@ setNightStats({
   invalid: checks.filter((c) =>
     ["used_qr", "expired_qr", "invalid_qr"].includes(c.result)
   ).length,
-});
+});}
 
   async function tryAwardEntryPoints(guest: {
     id: string;
