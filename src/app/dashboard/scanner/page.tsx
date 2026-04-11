@@ -493,17 +493,17 @@ setNightStats({
         return 0;
       }
 
-      const { error: movementError } = await supabase
-        .from("holy_points_movements")
-        .insert({
-          user_id: guest.user_id,
-          event_id: event.id,
-          amount: GUEST_ENTRY_POINTS,
-          type: "entry_free",
-          description: "Ingreso por lista free",
-          created_at: new Date().toISOString(),
-          movement_type: "credit",
-        });
+    const { error: movementError } = await (supabase as any)
+  .from("holy_points_movements")
+  .insert({
+    user_id: guest.user_id,
+    event_id: event.id,
+    amount: GUEST_ENTRY_POINTS,
+    type: "entry_free",
+    description: "Ingreso por lista free",
+    created_at: new Date().toISOString(),
+    movement_type: "credit",
+  });
 
       if (movementError) {
         console.error("No se pudieron registrar los puntos de ingreso:", movementError);
