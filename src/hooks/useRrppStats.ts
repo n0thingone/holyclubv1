@@ -12,6 +12,17 @@ interface RrppStats {
   rewards: RrppEventReward[];
 }
 
+// 👇 TIPOS AGREGADOS (CLAVE)
+type Registration = {
+  id: string;
+  registration_status: string;
+};
+
+type Ranking = {
+  position: number;
+  checkin_count: number;
+};
+
 export function useRrppStats(rrppId?: string, eventId?: string) {
   const [stats, setStats] = useState<RrppStats>({
     registered: 0,
@@ -72,16 +83,21 @@ export function useRrppStats(rrppId?: string, eventId?: string) {
       if (benefitsRes.error) throw benefitsRes.error;
       if (rewardsRes.error) throw rewardsRes.error;
 
-const registrations = (registrationsRes.data ?? []) as any[];
+      // ✅ FIX 1: tipado registrations
+      const registrations = (registrationsRes.data ?? []) as Registration[];
+
       const checkedInFromRegistrations = registrations.filter(
         (r) => r.registration_status === "checked_in"
       ).length;
 
+      // ✅ FIX 2: tipado ranking
+      const ranking = rankingRes.data as Ranking | null;
+
       setStats({
         registered: registrations.length,
         checkedIn:
-          rankingRes.data?.checkin_count ?? checkedInFromRegistrations ?? 0,
-        position: rankingRes.data?.position ?? 0,
+          ranking?.checkin_count ?? checkedInFromRegistrations ?? 0,
+        position: ranking?.position ?? 0,
         benefits: (benefitsRes.data as RrppEventBenefit[]) || [],
         rewards: (rewardsRes.data as RrppEventReward[]) || [],
       });
