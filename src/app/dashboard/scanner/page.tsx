@@ -556,10 +556,10 @@ const newCreditsTotal = !safeCurrentPoints
         }
       }
 
-      const { error: markError } = await supabase
-        .from("guest_registrations")
-        .update({ entry_points_awarded: true })
-        .eq("id", guest.id);
+     const { error: markError } = await (supabase as any)
+  .from("guest_registrations")
+  .update({ entry_points_awarded: true })
+  .eq("id", guest.id);
 
       if (markError) {
         console.error("No se pudo marcar entry_points_awarded:", markError);
