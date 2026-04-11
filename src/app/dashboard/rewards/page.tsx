@@ -174,10 +174,10 @@ export default function RewardsPage() {
     setError(null);
     setSuccess(null);
 
-    const { error } = await supabase
-      .from("holy_rewards")
-      .update({ active: !active })
-      .eq("id", id);
+   const { error } = await (supabase as any)
+  .from("holy_rewards")
+  .update({ active: !active })
+  .eq("id", id);
 
     if (error) {
       console.error("Error actualizando reward:", error);
