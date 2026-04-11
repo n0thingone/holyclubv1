@@ -442,16 +442,17 @@ export default function ScanPage() {
       .select("result")
       .eq("event_id", event.id);
 
-    if (error || !data) return;
+  if (error || !data) return;
 
-    setNightStats({
-      valid: data.filter((c) => c.result === "valid_entry").length,
-      gold: data.filter((c) => c.result === "gold_entry").length,
-      invalid: data.filter((c) =>
-        ["used_qr", "expired_qr", "invalid_qr"].includes(c.result)
-      ).length,
-    });
-  }
+const checks = (data ?? []) as Array<{ result: string }>;
+
+setNightStats({
+  valid: checks.filter((c) => c.result === "valid_entry").length,
+  gold: checks.filter((c) => c.result === "gold_entry").length,
+  invalid: checks.filter((c) =>
+    ["used_qr", "expired_qr", "invalid_qr"].includes(c.result)
+  ).length,
+});
 
   async function tryAwardEntryPoints(guest: {
     id: string;
