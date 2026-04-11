@@ -168,9 +168,9 @@ export default function GuestRegistrationClient({
       entry_points_awarded: false,
     };
 
-    const { error: insertError } = await supabase
-      .from("guest_registrations")
-      .insert(payload);
+  const { error: insertError } = await (supabase as any)
+  .from("guest_registrations")
+  .insert(payload);
 
     if (insertError) {
       console.error("Error insertando invitado:", insertError);
