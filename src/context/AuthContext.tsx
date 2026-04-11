@@ -124,10 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         full_name: fullName,
         username: fullName,
-        role: existingProfile?.role ?? "cliente",
+        role: (existingProfile as { role?: string } | null)?.role ?? "cliente",
       };
 
-      const { error } = await supabase.from("profiles").upsert(payload, {
+     const { error } = await (supabase as any).from("profiles").upsert(payload, {
         onConflict: "id",
       });
 
