@@ -151,12 +151,12 @@ export default function AdminPointsPage() {
 
     const signedAmount = mode === "credit" ? numeric : -numeric;
 
-    const { data, error } = await supabase.rpc("adjust_holy_points", {
-      p_user_id: selectedUser.id,
-      p_amount: signedAmount,
-      p_reason: reason.trim(),
-      p_note: note.trim() || null,
-    });
+  const { data, error } = await (supabase as any).rpc("adjust_holy_points", {
+  p_user_id: selectedUser.id,
+  p_amount: signedAmount,
+  p_reason: reason.trim(),
+  p_note: note.trim() || null,
+});
 
     setSaving(false);
 
