@@ -70,9 +70,9 @@ export default function AdminPointsPage() {
     setSearching(true);
     setError(null);
 
-    const { data, error } = await supabase.rpc("search_profiles_for_admin", {
-      p_query: q,
-    });
+  const { data, error } = await (supabase as any).rpc("search_profiles_for_admin", {
+  p_query: q,
+});
 
     setSearching(false);
 
