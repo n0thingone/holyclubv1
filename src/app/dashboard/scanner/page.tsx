@@ -510,22 +510,24 @@ setNightStats({
         return 0;
       }
 
-      const { data: currentPoints, error: currentPointsError } = await supabase
-        .from("holy_points")
-        .select("user_id, points")
-        .eq("user_id", guest.user_id)
-        .maybeSingle();
+  const { data: currentPoints, error: currentPointsError } = await supabase
+  .from("holy_points")
+  .select("user_id, points")
+  .eq("user_id", guest.user_id)
+  .maybeSingle<{ user_id: string; points: number | null }>();
 
       if (currentPointsError) {
         console.error("No se pudo leer holy_points:", currentPointsError);
         return 0;
       }
 
-      const newCreditsTotal = !currentPoints
-        ? GUEST_ENTRY_POINTS
-        : (currentPoints.points || 0) + GUEST_ENTRY_POINTS;
+const safeCurrentPoints = currentPoints as { points?: number } | null;
 
-      if (!currentPoints) {
+const newCreditsTotal = !safeCurrentPoints
+  ? GUEST_ENTRY_POINTS
+  : (safeCurrentPoints.points || 0) + GUEST_ENTRY_POINTS;
+
+      if (!safeCurrentPoints) {
         const { error: insertPointsError } = await supabase
           .from("holy_points")
           .insert({
