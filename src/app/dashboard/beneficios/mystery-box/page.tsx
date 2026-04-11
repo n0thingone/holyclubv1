@@ -207,9 +207,9 @@ export default function MysteryBoxPage() {
       await new Promise((resolve) => setTimeout(resolve, 250));
       setShowFlash(false);
 
-      const { data, error } = await supabase.rpc("open_holy_mystery_box", {
-        p_user_id: userId,
-      });
+    const { data, error } = await (supabase as any).rpc("open_holy_mystery_box", {
+  p_user_id: userId,
+});
 
       if (error) throw error;
 
