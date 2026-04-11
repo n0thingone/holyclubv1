@@ -147,7 +147,7 @@ export default function RewardsPage() {
         imageUrl = await uploadRewardImage(imageFile);
       }
 
-      const { error } = await supabase.from("holy_rewards").insert({
+    const { error } = await (supabase as any).from("holy_rewards").insert({
         name: name.trim(),
         description: description.trim() || null,
         points_cost: points,
