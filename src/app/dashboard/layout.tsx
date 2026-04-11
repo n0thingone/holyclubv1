@@ -9,7 +9,7 @@ export default function DashboardLayout({
   children: ReactNode;
 }) {
   return (
-    <DashboardShell title="HOLY CLUB" onlineCount={128}>
+   <DashboardShell title="HOLY CLUB">
       <div className="min-h-screen w-full">{children}</div>
     </DashboardShell>
   );
