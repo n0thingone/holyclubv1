@@ -204,10 +204,10 @@ export default function AdminPointsPage() {
     setRoleMessage(null);
     setError(null);
 
-    const { data, error } = await supabase.rpc("set_user_role", {
-      p_user_id: selectedUser.id,
-      p_role: selectedRole,
-    });
+ const { data, error } = await (supabase as any).rpc("set_user_role", {
+  p_user_id: selectedUser.id,
+  p_role: selectedRole,
+});
 
     setRoleSaving(false);
 
