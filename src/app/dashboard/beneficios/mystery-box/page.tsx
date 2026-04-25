@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Gift,
   Zap,
   Stars,
+  Sparkles,
   Crown,
   Lock,
   Coins,
@@ -157,6 +158,48 @@ function getRewardMeta(rewardId: string): BoxReward | null {
   return rewards.find((reward) => reward.id === rewardId) ?? null;
 }
 
+
+function rarityCasinoClasses(rarity: Rarity) {
+  switch (rarity) {
+    case "common":
+      return {
+        frame: "border-white/20 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.14),transparent_35%),linear-gradient(180deg,rgba(20,20,26,0.96),rgba(8,8,12,0.98))] shadow-[0_0_60px_rgba(255,255,255,0.08)]",
+        orb: "from-white/35 via-white/10 to-transparent",
+        text: "text-white",
+        ring: "border-white/25 bg-white/10",
+        button: "bg-white text-black hover:bg-white/90 shadow-[0_0_28px_rgba(255,255,255,0.22)]",
+        particles: "bg-white/60 shadow-[0_0_12px_rgba(255,255,255,0.55)]",
+      };
+    case "rare":
+      return {
+        frame: "border-cyan-300/35 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.25),transparent_34%),radial-gradient(circle_at_bottom,rgba(59,130,246,0.16),transparent_38%),linear-gradient(180deg,rgba(5,30,38,0.96),rgba(6,10,18,0.98))] shadow-[0_0_80px_rgba(34,211,238,0.20)]",
+        orb: "from-cyan-300/40 via-cyan-400/12 to-transparent",
+        text: "text-cyan-200",
+        ring: "border-cyan-300/35 bg-cyan-400/10",
+        button: "bg-cyan-400 text-black hover:bg-cyan-300 shadow-[0_0_30px_rgba(34,211,238,0.25)]",
+        particles: "bg-cyan-200/70 shadow-[0_0_14px_rgba(34,211,238,0.8)]",
+      };
+    case "epic":
+      return {
+        frame: "border-fuchsia-300/35 bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.30),transparent_34%),radial-gradient(circle_at_bottom,rgba(59,130,246,0.16),transparent_38%),linear-gradient(180deg,rgba(31,6,48,0.97),rgba(7,6,15,0.98))] shadow-[0_0_95px_rgba(217,70,239,0.24)]",
+        orb: "from-fuchsia-300/45 via-fuchsia-500/12 to-transparent",
+        text: "text-fuchsia-200",
+        ring: "border-fuchsia-300/35 bg-fuchsia-400/10",
+        button: "bg-fuchsia-500 text-white hover:bg-fuchsia-400 shadow-[0_0_34px_rgba(217,70,239,0.35)]",
+        particles: "bg-fuchsia-200/75 shadow-[0_0_16px_rgba(217,70,239,0.85)]",
+      };
+    case "legendary":
+      return {
+        frame: "border-amber-300/45 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.36),transparent_34%),radial-gradient(circle_at_bottom,rgba(217,70,239,0.15),transparent_38%),linear-gradient(180deg,rgba(55,32,5,0.98),rgba(9,7,12,0.98))] shadow-[0_0_120px_rgba(251,191,36,0.32)]",
+        orb: "from-amber-200/55 via-yellow-400/16 to-transparent",
+        text: "text-amber-200",
+        ring: "border-amber-300/45 bg-amber-400/12",
+        button: "bg-amber-300 text-black hover:bg-amber-200 shadow-[0_0_40px_rgba(251,191,36,0.40)]",
+        particles: "bg-yellow-200/80 shadow-[0_0_18px_rgba(251,191,36,0.95)]",
+      };
+  }
+}
+
 export default function MysteryBoxPage() {
   const supabase = useMemo(() => getSupabaseClient(), []);
   const { profile, loading, refreshProfile } = useAuth();
@@ -169,9 +212,38 @@ export default function MysteryBoxPage() {
   const [showJackpot, setShowJackpot] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isGuest, setIsGuest] = useState(false);
+  const prizesScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setIsGuest(isGuestUser());
+  }, []);
+
+  useEffect(() => {
+    const el = prizesScrollRef.current;
+    if (!el) return;
+
+    let animationFrame = 0;
+    let lastTime = performance.now();
+    const speed = 18; // px por segundo, suave tipo casino
+
+    const tick = (time: number) => {
+      const delta = Math.min(time - lastTime, 48) / 1000;
+      lastTime = time;
+
+      if (el.scrollWidth > el.clientWidth) {
+        el.scrollLeft += speed * delta;
+        const halfWidth = el.scrollWidth / 2;
+        if (el.scrollLeft >= halfWidth) {
+          el.scrollLeft = 0;
+        }
+      }
+
+      animationFrame = requestAnimationFrame(tick);
+    };
+
+    animationFrame = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(animationFrame);
   }, []);
 
   const userId = (profile as any)?.id ?? null;
@@ -251,7 +323,7 @@ export default function MysteryBoxPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 pb-24 pt-2 text-white">
+    <div className="mx-auto w-full max-w-7xl space-y-3 px-3 pb-24 pt-1 text-white md:space-y-6 md:px-4 md:pt-2">
       <AnimatePresence>
         {showJackpot ? (
           <motion.div
@@ -322,7 +394,7 @@ export default function MysteryBoxPage() {
         </div>
       ) : null}
 
-      <section className="relative overflow-hidden rounded-[34px] border border-fuchsia-500/20 bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.22),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.14),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-5 shadow-[0_0_70px_rgba(168,85,247,0.18)] backdrop-blur-xl sm:p-6">
+      <section className="relative hidden overflow-hidden rounded-[34px] border border-fuchsia-500/20 md:block bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.22),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.14),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-5 shadow-[0_0_70px_rgba(168,85,247,0.18)] backdrop-blur-xl sm:p-6">
         <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.20))]" />
 
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
@@ -380,8 +452,8 @@ export default function MysteryBoxPage() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.25fr)_420px]">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-5 shadow-[0_16px_44px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:p-6">
+      <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1.25fr)_420px] 2xl:gap-6">
+        <section className="relative overflow-hidden rounded-[28px] border border-fuchsia-400/20 bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.18),transparent_32%),radial-gradient(circle_at_bottom,rgba(34,211,238,0.10),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.025))] p-4 shadow-[0_0_70px_rgba(168,85,247,0.16)] backdrop-blur-xl sm:rounded-[34px] sm:p-6">
           <div className="pointer-events-none absolute inset-0 opacity-50">
             <div className="absolute left-1/2 top-8 h-40 w-40 -translate-x-1/2 rounded-full bg-fuchsia-500/20 blur-3xl" />
             <div className="absolute bottom-10 left-1/2 h-32 w-56 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl" />
@@ -389,18 +461,38 @@ export default function MysteryBoxPage() {
 
           <div className="relative">
             <div className="text-center">
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-fuchsia-300">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-fuchsia-300 sm:text-[11px]">
                 Box opening
               </p>
-              <h2 className="mt-2 text-2xl font-black text-white sm:text-3xl">
+              <h2 className="mt-1 text-2xl font-black text-white sm:mt-2 sm:text-3xl">
                 HOLY BOX
               </h2>
-              <p className="mt-2 text-sm text-white/55">
+              <p className="mt-1 text-xs text-white/55 sm:mt-2 sm:text-sm">
                 Abrila y descubrí qué te tocó esta noche.
               </p>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 md:hidden">
+                <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2.5 text-left">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/35">
+                    Créditos
+                  </p>
+                  <p className="mt-1 text-xl font-black text-white">
+                    {loading ? "..." : credits.toLocaleString("es-AR")}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2.5 text-left">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/35">
+                    Costo
+                  </p>
+                  <p className="mt-1 text-xl font-black text-fuchsia-300">
+                    {BOX_COST.toLocaleString("es-AR")}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="relative mx-auto mt-8 flex min-h-[400px] w-full max-w-[560px] items-center justify-center sm:min-h-[420px]">
+            <div className="relative mx-auto mt-4 flex min-h-[245px] w-full max-w-[560px] items-center justify-center sm:mt-8 sm:min-h-[420px]">
               <AnimatePresence>
                 {showFlash ? (
                   <motion.div
@@ -437,23 +529,23 @@ export default function MysteryBoxPage() {
                           ease: "easeInOut",
                         }
                   }
-                  className="relative z-10 w-full max-w-[340px] sm:max-w-[360px]"
+                  className="relative z-10 w-full max-w-[260px] sm:max-w-[360px]"
                 >
                   <div className="absolute inset-x-8 bottom-2 h-10 rounded-full bg-fuchsia-500/25 blur-2xl" />
 
-                  <div className="relative h-[240px] w-full rounded-[28px] border border-fuchsia-400/20 bg-[linear-gradient(180deg,rgba(29,9,50,0.96),rgba(10,10,16,0.98))] shadow-[0_0_80px_rgba(217,70,239,0.18)] sm:h-[250px]">
-                    <div className="absolute inset-x-4 top-5 h-8 rounded-2xl border border-white/10 bg-white/5" />
+                  <div className="relative h-[175px] w-full rounded-[24px] border border-fuchsia-400/20 bg-[linear-gradient(180deg,rgba(29,9,50,0.96),rgba(10,10,16,0.98))] shadow-[0_0_80px_rgba(217,70,239,0.18)] sm:h-[250px] sm:rounded-[28px]">
+                    <div className="absolute inset-x-4 top-4 h-7 rounded-2xl border border-white/10 bg-white/5 sm:top-5 sm:h-8" />
                     <div className="absolute inset-y-0 left-0 w-6 rounded-l-[28px] border-r border-fuchsia-400/20 bg-white/5" />
                     <div className="absolute inset-y-0 right-0 w-6 rounded-r-[28px] border-l border-fuchsia-400/20 bg-white/5" />
-                    <div className="absolute inset-x-0 top-[104px] h-[10px] bg-fuchsia-500/70 shadow-[0_0_30px_rgba(217,70,239,0.75)]" />
-                    <div className="absolute inset-x-0 top-[118px] h-[3px] bg-cyan-400/90 shadow-[0_0_26px_rgba(34,211,238,0.8)]" />
+                    <div className="absolute inset-x-0 top-[77px] h-[8px] bg-fuchsia-500/70 shadow-[0_0_30px_rgba(217,70,239,0.75)] sm:top-[104px] sm:h-[10px]" />
+                    <div className="absolute inset-x-0 top-[89px] h-[3px] bg-cyan-400/90 shadow-[0_0_26px_rgba(34,211,238,0.8)] sm:top-[118px]" />
 
-                    <div className="absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[24px] border border-fuchsia-400/25 bg-black/30 shadow-[0_0_40px_rgba(217,70,239,0.22)]">
-                      <span className="text-4xl font-black text-fuchsia-300">?</span>
+                    <div className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[20px] border border-fuchsia-400/25 bg-black/30 shadow-[0_0_40px_rgba(217,70,239,0.22)] sm:h-20 sm:w-20 sm:rounded-[24px]">
+                      <span className="text-3xl font-black text-fuchsia-300 sm:text-4xl">?</span>
                     </div>
 
-                    <div className="absolute left-1/2 top-[62px] -translate-x-1/2 text-center">
-                      <p className="text-sm font-black uppercase tracking-[0.3em] text-white">
+                    <div className="absolute left-1/2 top-[45px] -translate-x-1/2 text-center sm:top-[62px]">
+                      <p className="text-xs font-black uppercase tracking-[0.3em] text-white sm:text-sm">
                         HOLY
                       </p>
                     </div>
@@ -461,60 +553,122 @@ export default function MysteryBoxPage() {
                 </motion.div>
               ) : (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.7, y: 30 }}
+                  initial={{ opacity: 0, scale: 0.76, y: 28 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  transition={{ duration: 0.45, ease: "easeOut" }}
-                  className={`relative z-10 w-full max-w-[560px] rounded-[32px] border p-5 text-center sm:p-6 ${
-                    rarityClasses(openedReward.rarity).badge
-                  } ${rarityClasses(openedReward.rarity).glow}`}
+                  transition={{ duration: 0.48, ease: "easeOut" }}
+                  className={`relative z-10 w-full max-w-[560px] overflow-hidden rounded-[30px] border p-4 text-center sm:rounded-[36px] sm:p-6 ${
+                    rarityCasinoClasses(openedReward.rarity).frame
+                  }`}
                 >
-                  <div className="absolute inset-x-10 bottom-2 h-10 rounded-full bg-fuchsia-500/15 blur-2xl" />
-
-                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[24px] border border-white/10 bg-black/20 text-white">
-                    {openedReward.rarity === "legendary" ? (
-                      <Crown className="h-10 w-10 text-amber-300" />
-                    ) : openedReward.rarity === "epic" ? (
-                      <Stars className="h-10 w-10 text-fuchsia-300" />
-                    ) : openedReward.rarity === "rare" ? (
-                      <Zap className="h-10 w-10 text-cyan-300" />
-                    ) : (
-                      <Gift className="h-10 w-10 text-white" />
-                    )}
+                  <div className="pointer-events-none absolute inset-0 opacity-70">
+                    {Array.from({ length: openedReward.rarity === "legendary" ? 26 : openedReward.rarity === "epic" ? 20 : 14 }).map((_, i) => (
+                      <span
+                        key={i}
+                        className={`absolute rounded-full ${rarityCasinoClasses(openedReward.rarity).particles} ${openedReward.rarity === "legendary" ? "h-2 w-2" : "h-1.5 w-1.5"}`}
+                        style={{
+                          left: `${(i * 37) % 100}%`,
+                          top: `${(i * 53) % 100}%`,
+                        }}
+                      />
+                    ))}
                   </div>
 
-                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em]">
-                    {rarityIcon(openedReward.rarity)}
-                    {rarityLabel(openedReward.rarity)}
-                  </div>
+                  <motion.div
+                    className={`pointer-events-none absolute left-1/2 top-8 h-52 w-52 -translate-x-1/2 rounded-full bg-gradient-radial ${rarityCasinoClasses(openedReward.rarity).orb} blur-3xl`}
+                    animate={{ scale: [1, 1.18, 1], opacity: [0.55, 0.9, 0.55] }}
+                    transition={{ duration: openedReward.rarity === "legendary" ? 1.45 : 2.4, repeat: Infinity }}
+                  />
 
-                  <h3 className="mt-5 text-2xl font-black tracking-tight text-white sm:text-4xl">
-                    {openedReward.name}
-                  </h3>
+                  {openedReward.rarity === "legendary" && (
+                    <>
+                      <motion.div
+                        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200 to-transparent shadow-[0_0_45px_rgba(251,191,36,0.85)]"
+                        animate={{ opacity: [0.35, 1, 0.35] }}
+                        transition={{ duration: 1, repeat: Infinity }}
+                      />
+                      <motion.div
+                        className="pointer-events-none absolute right-5 top-5 text-3xl text-amber-200"
+                        animate={{ rotate: [0, 20, -20, 0], scale: [1, 1.25, 1] }}
+                        transition={{ duration: 1.1, repeat: Infinity }}
+                      >
+                        ✦
+                      </motion.div>
+                      <motion.div
+                        className="pointer-events-none absolute bottom-5 left-5 text-3xl text-amber-200"
+                        animate={{ rotate: [0, -20, 20, 0], scale: [1, 1.25, 1] }}
+                        transition={{ duration: 1.2, repeat: Infinity }}
+                      >
+                        ✦
+                      </motion.div>
+                    </>
+                  )}
 
-                  <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-white/70">
-                    {openedReward.description}
-                  </p>
-
-                  <div className="mt-6 flex items-center justify-center gap-2 text-fuchsia-300">
-                    <PartyPopper className="h-4 w-4" />
-                    <span className="text-sm font-semibold">
-                      Premio desbloqueado
-                    </span>
-                  </div>
-
-                  <div className="mt-6 flex items-center justify-center">
-                    <button
-                      onClick={() => router.push("/dashboard/puntos/movimientos")}
-                      className="inline-flex items-center justify-center rounded-2xl bg-fuchsia-600 px-6 py-3 text-sm font-black text-white shadow-[0_0_28px_rgba(217,70,239,0.25)] transition hover:bg-fuchsia-500"
+                  <div className="relative z-10">
+                    <motion.div
+                      animate={{ y: [0, -6, 0], rotate: openedReward.rarity === "legendary" ? [0, -4, 4, 0] : [0, 0, 0] }}
+                      transition={{ duration: openedReward.rarity === "legendary" ? 1.5 : 2.2, repeat: Infinity, ease: "easeInOut" }}
+                      className={`mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border bg-black/24 text-white backdrop-blur sm:h-20 sm:w-20 sm:rounded-[26px] ${rarityCasinoClasses(openedReward.rarity).ring}`}
                     >
-                      IR A MIS QR
-                    </button>
+                      {openedReward.rarity === "legendary" ? (
+                        <Crown className="h-9 w-9 text-amber-200 sm:h-11 sm:w-11" />
+                      ) : openedReward.rarity === "epic" ? (
+                        <Stars className="h-9 w-9 text-fuchsia-200 sm:h-11 sm:w-11" />
+                      ) : openedReward.rarity === "rare" ? (
+                        <Zap className="h-9 w-9 text-cyan-200 sm:h-11 sm:w-11" />
+                      ) : (
+                        <Gift className="h-9 w-9 text-white sm:h-11 sm:w-11" />
+                      )}
+                    </motion.div>
+
+                    <div className={`mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] sm:mt-4 sm:text-[11px] ${rarityCasinoClasses(openedReward.rarity).ring} ${rarityCasinoClasses(openedReward.rarity).text}`}>
+                      {rarityIcon(openedReward.rarity)}
+                      {rarityLabel(openedReward.rarity)} DROP
+                    </div>
+
+                    <h3 className={`mx-auto mt-4 max-w-[92vw] text-3xl font-black uppercase leading-[0.95] tracking-[-0.05em] text-white drop-shadow-[0_10px_28px_rgba(0,0,0,0.45)] sm:mt-5 sm:text-5xl ${openedReward.rarity === "legendary" ? "animate-pulse" : ""}`}>
+                      {openedReward.name}
+                    </h3>
+
+                    <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-relaxed text-white/72 sm:text-base">
+                      {openedReward.description}
+                    </p>
+
+                    <div className="mt-4 flex items-center justify-center gap-2 text-fuchsia-200 sm:mt-5">
+                      <PartyPopper className="h-4 w-4" />
+                      <span className="text-sm font-black uppercase tracking-[0.12em]">
+                        Premio desbloqueado
+                      </span>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 gap-2 sm:mt-6 sm:grid-cols-2 sm:gap-3">
+                      <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          router.push("/dashboard/puntos/movimientos");
+                        }}
+                        className={`relative z-50 inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-black uppercase tracking-[0.04em] transition ${rarityCasinoClasses(openedReward.rarity).button}`}
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        IR A MIS QR
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setOpenedReward(null)}
+                        className="relative z-40 inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/8 px-6 py-3 text-sm font-black uppercase tracking-[0.04em] text-white transition hover:bg-white/12"
+                      >
+                        VOLVER A LA BOX
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               )}
             </div>
 
-            <div className="mx-auto mt-3 max-w-[360px] text-center">
+            <div className="mx-auto mt-2 max-w-[360px] text-center sm:mt-3">
               {!canOpen && !isOpening && !loading ? (
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-300">
                   <Lock className="h-4 w-4" />
@@ -525,11 +679,11 @@ export default function MysteryBoxPage() {
               ) : null}
             </div>
 
-            <div className="mt-6 flex flex-col items-center justify-center gap-3">
+            <div className="mt-3 flex flex-col items-center justify-center gap-2 sm:mt-6 sm:gap-3">
               <button
                 onClick={handleOpenBox}
                 disabled={!canOpen}
-                className="inline-flex min-w-[240px] items-center justify-center gap-2 rounded-[22px] bg-fuchsia-600 px-8 py-4 text-base font-black text-white shadow-[0_0_28px_rgba(217,70,239,0.35)] transition hover:bg-fuchsia-500 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none"
+                className="inline-flex w-full max-w-[320px] items-center justify-center gap-2 rounded-[20px] bg-fuchsia-600 px-7 py-3.5 text-sm font-black text-white shadow-[0_0_28px_rgba(217,70,239,0.35)] transition hover:bg-fuchsia-500 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none sm:min-w-[240px] sm:py-4 sm:text-base"
               >
                 {isGuest ? (
                   <>
@@ -549,15 +703,61 @@ export default function MysteryBoxPage() {
                 )}
               </button>
 
-              <div className="inline-flex items-center gap-2 text-sm text-white/55">
+              <div className="inline-flex items-center gap-2 text-xs text-white/55 sm:text-sm">
                 <Coins className="h-4 w-4" />
                 Costo: {BOX_COST.toLocaleString("es-AR")} créditos
+              </div>
+            </div>
+
+            <div className="relative mx-auto mt-5 w-full max-w-[620px] overflow-hidden sm:mt-7">
+              <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-10 bg-gradient-to-r from-[#120618] to-transparent" />
+              <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-10 bg-gradient-to-l from-[#120618] to-transparent" />
+
+              <div className="mb-3 flex items-center justify-center gap-2 text-center">
+                <Sparkles className="h-3.5 w-3.5 text-fuchsia-300" />
+                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/45">
+                  Posibles premios
+                </p>
+                <Sparkles className="h-3.5 w-3.5 text-fuchsia-300" />
+              </div>
+
+              <div
+                ref={prizesScrollRef}
+                className="flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {[...rewards, ...rewards].map((reward, index) => {
+                  const casino = rarityCasinoClasses(reward.rarity);
+
+                  return (
+                    <div
+                      key={`${reward.id}-${index}`}
+                      className={`relative min-w-[128px] shrink-0 overflow-hidden rounded-2xl border px-3 py-3 text-center backdrop-blur-xl ${casino.frame}`}
+                    >
+                      <div className={`pointer-events-none absolute left-1/2 top-0 h-14 w-20 -translate-x-1/2 rounded-full bg-gradient-radial ${casino.orb} blur-2xl`} />
+
+                      <div className="relative z-10 flex flex-col items-center justify-center gap-1">
+                        <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.16em] ${casino.ring} ${casino.text}`}>
+                          {rarityIcon(reward.rarity)}
+                          {rarityLabel(reward.rarity)}
+                        </div>
+
+                        <p className="mt-1 max-w-[105px] truncate text-xs font-black uppercase leading-tight text-white">
+                          {reward.name}
+                        </p>
+
+                        <p className="text-[10px] font-bold text-white/45">
+                          {reward.chance}% chance
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         </section>
 
-        <aside className="space-y-6">
+        <aside className="hidden space-y-6 2xl:block">
           <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-5 shadow-[0_14px_40px_rgba(0,0,0,0.24)] backdrop-blur-xl">
             <h3 className="text-lg font-black text-white">Rarezas</h3>
 

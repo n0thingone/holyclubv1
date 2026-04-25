@@ -349,7 +349,7 @@ export default function MovimientosPage() {
   }, [movements, redemptions, rewardNames, now]);
 
   return (
-    <DashboardShell title="HOLY CLUB · MOVIMIENTOS">
+    <DashboardShell title="MOVIMIENTOS">
       <div className="mx-auto max-w-4xl space-y-4 px-4 pb-24 -mt-2">
         {isGuest && (
           <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">

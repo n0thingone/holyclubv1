@@ -367,29 +367,15 @@ export default function DashboardShell({
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px holy-header-glow bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent" />
 
         <div
-          className={`mx-auto flex max-w-6xl items-center justify-between px-4 transition-all duration-300 ${
+          className={`mx-auto grid max-w-6xl grid-cols-[92px_1fr_92px] items-center px-4 transition-all duration-300 ${
             scrolled ? "py-2" : "py-3"
           }`}
         >
-          <div className="flex min-w-0 items-center gap-3">
-            <div
-              className={`flex shrink-0 items-center justify-center rounded-2xl border border-fuchsia-400/25 bg-fuchsia-500/15 shadow-[0_0_24px_rgba(217,70,239,0.32)] transition-all duration-300 ${
-                scrolled ? "h-9 w-9" : "h-11 w-11"
-              }`}
-            >
-              <span
-                className={`font-black text-fuchsia-200 transition-all duration-300 ${
-                  scrolled ? "text-[14px]" : "text-[17px]"
-                }`}
-              >
-                H
-              </span>
-            </div>
-
+          <div className="flex justify-start">
             <button
               onClick={openMenu}
-              className={`holy-menu-button flex shrink-0 items-center justify-center rounded-2xl border border-fuchsia-400/25 bg-fuchsia-500/10 text-white/80 transition-all duration-300 hover:scale-[1.04] hover:bg-fuchsia-500/18 hover:text-white active:scale-95 ${
-                scrolled ? "h-9 w-9" : "h-11 w-11"
+              className={`holy-menu-button flex shrink-0 items-center gap-2 rounded-2xl border border-fuchsia-400/25 bg-fuchsia-500/10 px-3 text-white/80 transition-all duration-300 hover:scale-[1.04] hover:bg-fuchsia-500/18 hover:text-white active:scale-95 ${
+                scrolled ? "h-8" : "h-9"
               }`}
               aria-label="Abrir menú"
             >
@@ -398,48 +384,59 @@ export default function DashboardShell({
                   scrolled ? "h-4 w-4" : "h-[18px] w-[18px]"
                 }`}
               />
+              <span
+                className={`font-black uppercase tracking-[0.16em] text-fuchsia-100 transition-all duration-300 ${
+                  scrolled ? "text-[9px]" : "text-[10px]"
+                }`}
+              >
+                MENÚ
+              </span>
             </button>
+          </div>
 
-            <div className="ml-1 min-w-0">
-              <div
-                className={`uppercase tracking-[0.30em] text-fuchsia-300 transition-all duration-300 ${
-                  scrolled ? "text-[9px]" : "text-[11px]"
-                }`}
-              >
-                HOLY CLUB
-              </div>
-              <div
-                className={`truncate font-black transition-all duration-300 ${
-                  scrolled
-                    ? "text-[16px] sm:text-[17px]"
-                    : "text-[18px] sm:text-[19px]"
-                }`}
-              >
-                {title || "HOLY CLUB"}
-              </div>
+          <div className="min-w-0 text-center">
+            <div
+              className={`uppercase tracking-[0.30em] text-fuchsia-300 transition-all duration-300 ${
+                scrolled ? "text-[9px]" : "text-[11px]"
+              }`}
+            >
+              HOLY CLUB
+            </div>
+            <div
+              className={`whitespace-nowrap font-black transition-all duration-300 ${
+                scrolled
+                  ? "text-[16px] sm:text-[17px]"
+                  : "text-[18px] sm:text-[19px]"
+              }`}
+            >
+              {title || "HOLY CLUB"}
             </div>
           </div>
 
-          <div
-            className={`flex shrink-0 items-center gap-2 rounded-full border border-fuchsia-400/25 bg-gradient-to-r from-fuchsia-500/18 to-violet-500/12 shadow-[0_0_28px_rgba(217,70,239,0.22)] transition-all duration-300 ${
-              scrolled ? "px-3 py-1.5" : "px-3.5 py-2"
-            }`}
-          >
+          <div className="flex justify-end">
             <div
-              className={`flex items-center justify-center rounded-full bg-fuchsia-500 shadow-[0_0_18px_rgba(217,70,239,0.40)] transition-all duration-300 ${
-                scrolled ? "h-8 w-8" : "h-9 w-9"
+              className={`relative flex shrink-0 items-center gap-1.5 rounded-full border border-fuchsia-400/25 bg-gradient-to-r from-fuchsia-500/18 to-violet-500/12 shadow-[0_0_28px_rgba(217,70,239,0.25)] transition-all duration-300 ${
+                scrolled ? "px-1.5 py-1" : "px-2 py-1"
               }`}
             >
-              <HolyCoin size={scrolled ? 17 : 19} />
-            </div>
+              <div className="pointer-events-none absolute inset-0 rounded-full bg-fuchsia-500/10 blur-md" />
 
-            <span
-              className={`font-black leading-none transition-all duration-300 ${
-                scrolled ? "text-[14px]" : "text-[15px]"
-              }`}
-            >
-              {credits.toLocaleString("es-AR")}
-            </span>
+              <div
+                className={`relative z-10 flex items-center justify-center rounded-full bg-fuchsia-500 shadow-[0_0_20px_rgba(217,70,239,0.58)] transition-all duration-300 ${
+                  scrolled ? "h-7 w-7" : "h-8 w-8"
+                }`}
+              >
+                <HolyCoin size={scrolled ? 17 : 20} />
+              </div>
+
+              <span
+                className={`relative z-10 font-black leading-none transition-all duration-300 ${
+                  scrolled ? "text-[12px]" : "text-[13px]"
+                }`}
+              >
+                {credits.toLocaleString("es-AR")}
+              </span>
+            </div>
           </div>
         </div>
       </div>

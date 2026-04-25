@@ -1,5 +1,6 @@
 // @ts-nocheck
 "use client";
+
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { useActiveEvent } from "@/hooks/useActiveEvent";
@@ -23,6 +24,7 @@ import {
   Camera,
   Usb,
   Crosshair,
+  ShieldCheck,
 } from "lucide-react";
 
 type MainMode = "entrada" | "barra";
@@ -62,6 +64,28 @@ type ModalState = {
   title?: string;
   message?: string;
   detail?: string;
+};
+
+type SecurityDisplayState = {
+  type: EntryScanResult["result"];
+  name: string;
+  rrpp?: string;
+  color: EntryScanResult["color"];
+  points?: number;
+  time: string;
+};
+
+type BarDisplayState = {
+  ok: boolean;
+  title: string;
+  reward: string;
+  action: string;
+  detail?: string;
+  color: string;
+  accent: "green" | "purple" | "gold" | "legendary" | "red" | "yellow";
+  rarityLabel: string;
+  icon: string;
+  time: string;
 };
 
 interface RecentEntry {
@@ -276,6 +300,7 @@ export default function ScanPage() {
   const barResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barFlashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modalCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const securityDisplayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [modalState, setModalState] = useState<ModalState>({
     open: false,
@@ -284,6 +309,10 @@ export default function ScanPage() {
     message: "",
     detail: "",
   });
+
+  const [securityDisplay, setSecurityDisplay] =
+    useState<SecurityDisplayState | null>(null);
+  const [barDisplay, setBarDisplay] = useState<BarDisplayState | null>(null);
 
   const [entryScanResult, setEntryScanResult] = useState<EntryScanResult | null>(null);
   const [barResult, setBarResult] = useState<RedeemResponse | null>(null);
@@ -324,6 +353,160 @@ export default function ScanPage() {
       clearTimeout(modalCloseTimeoutRef.current);
       modalCloseTimeoutRef.current = null;
     }
+  };
+
+  const clearSecurityDisplayTimeout = () => {
+    if (securityDisplayTimeoutRef.current) {
+      clearTimeout(securityDisplayTimeoutRef.current);
+      securityDisplayTimeoutRef.current = null;
+    }
+  };
+
+  const showSecurityDisplay = (result: EntryScanResult) => {
+    clearSecurityDisplayTimeout();
+
+    setSecurityDisplay({
+      type: result.result,
+      name: result.message,
+      rrpp: result.rrppName,
+      color: result.color,
+      points: result.clientPointsAdded,
+      time: new Date().toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }),
+    });
+
+    securityDisplayTimeoutRef.current = setTimeout(() => {
+      setSecurityDisplay(null);
+      securityDisplayTimeoutRef.current = null;
+
+      setTimeout(() => {
+        focusZebraInput();
+      }, 120);
+    }, result.success ? 4200 : 5000);
+  };
+
+
+  const getBarDisplayStyle = (result: RedeemResponse) => {
+    const rawName = (result.reward_name || result.reward || "").toUpperCase();
+    const niceName = getNiceRewardName(result).toUpperCase();
+    const rewardName = rawName || niceName || "CANJE";
+    const code = String(result.code || "").toLowerCase();
+    const msg = String(result.message || "").toLowerCase();
+
+    if (!result.ok) {
+      const isExpired = code.includes("expired") || msg.includes("venc");
+      const isUsed = code.includes("redeemed") || code.includes("used") || msg.includes("usado");
+
+      return {
+        reward: result.message || "QR NO VÁLIDO",
+        color: isExpired
+          ? "from-yellow-950 via-orange-700 to-red-500"
+          : "from-red-950 via-red-700 to-red-500",
+        accent: isExpired ? "yellow" : "red",
+        rarityLabel: isExpired ? "VENCIDO" : isUsed ? "YA USADO" : "ERROR",
+        icon: isExpired ? "⏱" : "✕",
+        action: "NO ENTREGAR",
+        title: isExpired ? "QR VENCIDO" : "NO ENTREGAR",
+      } as const;
+    }
+
+    if (rewardName.includes("SMIRNOFF") || rewardName.includes("SPEED") || rewardName.includes("BOT")) {
+      return {
+        reward: niceName,
+        color: "from-red-950 via-amber-700 to-yellow-400",
+        accent: "legendary",
+        rarityLabel: "LEGENDARIO",
+        icon: "✦",
+        action: "ENTREGAR BOTELLA + SPEED",
+        title: "CANJE LEGENDARIO",
+      } as const;
+    }
+
+    if (rewardName.includes("CHANDON")) {
+      return {
+        reward: niceName,
+        color: "from-yellow-950 via-amber-700 to-yellow-400",
+        accent: "gold",
+        rarityLabel: "LEGENDARIO",
+        icon: "👑",
+        action: "ENTREGAR BOTELLA",
+        title: "CANJE LEGENDARIO",
+      } as const;
+    }
+
+    if (rewardName.includes("FERNET") || rewardName.includes("VODKA") || rewardName.includes("500")) {
+      return {
+        reward: niceName,
+        color: "from-purple-950 via-fuchsia-800 to-indigo-500",
+        accent: "purple",
+        rarityLabel: "ÉPICO",
+        icon: "◆",
+        action: "ENTREGAR TRAGO 500 CC",
+        title: "CANJE ÉPICO",
+      } as const;
+    }
+
+    return {
+      reward: niceName,
+      color: "from-emerald-950 via-emerald-700 to-emerald-500",
+      accent: "green",
+      rarityLabel: "NORMAL",
+      icon: "✓",
+      action: "ENTREGAR EN BARRA",
+      title: "CANJE OK",
+    } as const;
+  };
+
+  const showBarDisplay = (result: RedeemResponse) => {
+    clearSecurityDisplayTimeout();
+
+    const style = getBarDisplayStyle(result);
+
+    setBarDisplay({
+      ok: result.ok,
+      title: style.title,
+      reward: style.reward,
+      action: style.action,
+      color: style.color,
+      accent: style.accent,
+      rarityLabel: style.rarityLabel,
+      icon: style.icon,
+      detail:
+        result.ok && typeof result.points_cost === "number"
+          ? `${result.points_cost.toLocaleString("es-AR")} créditos`
+          : result.ok && typeof result.new_balance === "number"
+            ? `Saldo nuevo: ${result.new_balance.toLocaleString("es-AR")}`
+            : result.code
+              ? `Código: ${result.code}`
+              : undefined,
+      time: new Date().toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }),
+    });
+
+    const isBigReward = style.accent === "gold" || style.accent === "legendary";
+    const isEpicReward = style.accent === "purple";
+    const displayDuration = result.ok
+      ? isBigReward
+        ? 9500
+        : isEpicReward
+          ? 7600
+          : 6800
+      : 7600;
+
+    securityDisplayTimeoutRef.current = setTimeout(() => {
+      setBarDisplay(null);
+      securityDisplayTimeoutRef.current = null;
+
+      setTimeout(() => {
+        focusZebraInput();
+      }, 120);
+    }, displayDuration);
   };
 
   const closeModalLater = (ms = 1800) => {
@@ -431,6 +614,7 @@ export default function ScanPage() {
       clearBarResetTimeout();
       clearBarFlashTimeout();
       clearModalCloseTimeout();
+      clearSecurityDisplayTimeout();
     };
   }, []);
 
@@ -442,17 +626,18 @@ export default function ScanPage() {
       .select("result")
       .eq("event_id", event.id);
 
-if (error || !data) return;
+    if (error || !data) return;
 
-const checks = (data ?? []) as Array<{ result: string }>;
+    const checks = (data ?? []) as Array<{ result: string }>;
 
-setNightStats({
-  valid: checks.filter((c) => c.result === "valid_entry").length,
-  gold: checks.filter((c) => c.result === "gold_entry").length,
-  invalid: checks.filter((c) =>
-    ["used_qr", "expired_qr", "invalid_qr"].includes(c.result)
-  ).length,
-});}
+    setNightStats({
+      valid: checks.filter((c) => c.result === "valid_entry").length,
+      gold: checks.filter((c) => c.result === "gold_entry").length,
+      invalid: checks.filter((c) =>
+        ["used_qr", "expired_qr", "invalid_qr"].includes(c.result)
+      ).length,
+    });
+  }
 
   async function tryAwardEntryPoints(guest: {
     id: string;
@@ -478,10 +663,10 @@ setNightStats({
       }
 
       if (existingMovement) {
-       const { error: markAlreadyError } = await (supabase as any)
-  .from("guest_registrations")
-  .update({ entry_points_awarded: true })
-  .eq("id", guest.id);
+        const { error: markAlreadyError } = await (supabase as any)
+          .from("guest_registrations")
+          .update({ entry_points_awarded: true })
+          .eq("id", guest.id);
 
         if (markAlreadyError) {
           console.error(
@@ -493,49 +678,49 @@ setNightStats({
         return 0;
       }
 
-    const { error: movementError } = await (supabase as any)
-  .from("holy_points_movements")
-  .insert({
-    user_id: guest.user_id,
-    event_id: event.id,
-    amount: GUEST_ENTRY_POINTS,
-    type: "entry_free",
-    description: "Ingreso por lista free",
-    created_at: new Date().toISOString(),
-    movement_type: "credit",
-  });
+      const { error: movementError } = await (supabase as any)
+        .from("holy_points_movements")
+        .insert({
+          user_id: guest.user_id,
+          event_id: event.id,
+          amount: GUEST_ENTRY_POINTS,
+          type: "entry_free",
+          description: "Ingreso por lista free",
+          created_at: new Date().toISOString(),
+          movement_type: "credit",
+        });
 
       if (movementError) {
         console.error("No se pudieron registrar los puntos de ingreso:", movementError);
         return 0;
       }
 
-  const { data: currentPoints, error: currentPointsError } = await supabase
-  .from("holy_points")
-  .select("user_id, points")
-  .eq("user_id", guest.user_id)
-  .maybeSingle<{ user_id: string; points: number | null }>();
+      const { data: currentPoints, error: currentPointsError } = await supabase
+        .from("holy_points")
+        .select("user_id, points")
+        .eq("user_id", guest.user_id)
+        .maybeSingle<{ user_id: string; points: number | null }>();
 
       if (currentPointsError) {
         console.error("No se pudo leer holy_points:", currentPointsError);
         return 0;
       }
 
-const safeCurrentPoints = currentPoints as { points?: number } | null;
+      const safeCurrentPoints = currentPoints as { points?: number } | null;
 
-const newCreditsTotal = !safeCurrentPoints
-  ? GUEST_ENTRY_POINTS
-  : (safeCurrentPoints.points || 0) + GUEST_ENTRY_POINTS;
+      const newCreditsTotal = !safeCurrentPoints
+        ? GUEST_ENTRY_POINTS
+        : (safeCurrentPoints.points || 0) + GUEST_ENTRY_POINTS;
 
       if (!safeCurrentPoints) {
         const { error: insertPointsError } = await (supabase as any)
-  .from("holy_points")
-  .insert({
-    user_id: guest.user_id,
-    points: GUEST_ENTRY_POINTS,
-    reason: "Ingreso por lista free",
-    created_at: new Date().toISOString(),
-  });
+          .from("holy_points")
+          .insert({
+            user_id: guest.user_id,
+            points: GUEST_ENTRY_POINTS,
+            reason: "Ingreso por lista free",
+            created_at: new Date().toISOString(),
+          });
 
         if (insertPointsError) {
           console.error("No se pudo crear holy_points:", insertPointsError);
@@ -543,12 +728,12 @@ const newCreditsTotal = !safeCurrentPoints
         }
       } else {
         const { error: updatePointsError } = await (supabase as any)
-  .from("holy_points")
-  .update({
-    points: newCreditsTotal,
-    reason: "Ingreso por lista free",
-  })
-  .eq("user_id", guest.user_id);
+          .from("holy_points")
+          .update({
+            points: newCreditsTotal,
+            reason: "Ingreso por lista free",
+          })
+          .eq("user_id", guest.user_id);
 
         if (updatePointsError) {
           console.error("No se pudo actualizar holy_points:", updatePointsError);
@@ -556,10 +741,10 @@ const newCreditsTotal = !safeCurrentPoints
         }
       }
 
-     const { error: markError } = await (supabase as any)
-  .from("guest_registrations")
-  .update({ entry_points_awarded: true })
-  .eq("id", guest.id);
+      const { error: markError } = await (supabase as any)
+        .from("guest_registrations")
+        .update({ entry_points_awarded: true })
+        .eq("id", guest.id);
 
       if (markError) {
         console.error("No se pudo marcar entry_points_awarded:", markError);
@@ -627,8 +812,9 @@ const newCreditsTotal = !safeCurrentPoints
         if (fallbackError) {
           goldError = fallbackError;
         } else {
-          gold =
-         candidates?.find((row: any) => tokenMatchesDb(row.qr_token || "", rawValue))
+          gold = candidates?.find((row: any) =>
+            tokenMatchesDb(row.qr_token || "", rawValue)
+          );
         }
       }
 
@@ -648,11 +834,11 @@ const newCreditsTotal = !safeCurrentPoints
           gold.used_count >= gold.max_uses ||
           (gold.expires_at && new Date(gold.expires_at).getTime() < Date.now())
         ) {
-        await (supabase as any).from("checkins").insert({
-  event_id: eventId,
-  checked_in_by: by,
-  result: "used_qr",
-});
+          await (supabase as any).from("checkins").insert({
+            event_id: eventId,
+            checked_in_by: by,
+            result: "used_qr",
+          });
 
           return {
             success: false,
@@ -662,10 +848,10 @@ const newCreditsTotal = !safeCurrentPoints
           };
         }
 
-      const { error: goldUpdateError } = await (supabase as any)
-  .from("gold_qrs")
-  .update({ used_count: (gold.used_count || 0) + 1 })
-  .eq("id", gold.id);
+        const { error: goldUpdateError } = await (supabase as any)
+          .from("gold_qrs")
+          .update({ used_count: (gold.used_count || 0) + 1 })
+          .eq("id", gold.id);
 
         if (goldUpdateError) {
           console.error("No se pudo actualizar el QR Gold:", goldUpdateError);
@@ -677,7 +863,7 @@ const newCreditsTotal = !safeCurrentPoints
           };
         }
 
-      await (supabase as any).from("checkins").insert({
+        await (supabase as any).from("checkins").insert({
           event_id: eventId,
           result: "gold_entry",
           checked_in_by: by,
@@ -744,7 +930,8 @@ const newCreditsTotal = !safeCurrentPoints
         }
 
         g =
-          candidates?.find((row) => tokenMatchesDb(row.qr_token || "", rawValue)) ?? null;
+          candidates?.find((row) => tokenMatchesDb(row.qr_token || "", rawValue)) ??
+          null;
       }
 
       if (!g) {
@@ -876,14 +1063,61 @@ const newCreditsTotal = !safeCurrentPoints
         };
       }
 
-      return {
-        token,
-        result: (data as RedeemResponse) || {
-          ok: false,
-          code: "empty_response",
-          message: "La función no devolvió datos",
-        },
+      let result: RedeemResponse = (data as RedeemResponse) || {
+        ok: false,
+        code: "empty_response",
+        message: "La función no devolvió datos",
       };
+
+      // FIX PRO: si la función SQL confirma el canje pero no devuelve el premio,
+      // buscamos el reward directo desde holy_redemptions + holy_rewards usando el token.
+      if (result.ok && !result.reward_name && !result.reward) {
+        try {
+          let rewardId = result.reward_id || null;
+
+          if (!rewardId) {
+            const tokenVariants = buildTokenVariants(rawValue);
+
+            for (const variant of [token, ...tokenVariants]) {
+              const { data: redemption } = await supabase
+                .from("holy_redemptions")
+                .select("reward_id")
+                .or(`qr_token.eq.${variant},short_token.eq.${variant}`)
+                .maybeSingle();
+
+              if (redemption?.reward_id) {
+                rewardId = redemption.reward_id;
+                break;
+              }
+            }
+          }
+
+          if (rewardId) {
+            const { data: reward } = await supabase
+              .from("holy_rewards")
+              .select("name, points_cost")
+              .eq("id", rewardId)
+              .maybeSingle();
+
+            if (reward) {
+              result = {
+                ...result,
+                reward_id: rewardId,
+                reward_name: reward.name,
+                reward: reward.name,
+                points_cost:
+                  typeof reward.points_cost === "number"
+                    ? reward.points_cost
+                    : Number(reward.points_cost || 0),
+              };
+            }
+          }
+        } catch (err) {
+          console.log("Fallback reward error:", err);
+        }
+      }
+
+      return { token, result };
     },
     [supabase]
   );
@@ -899,7 +1133,9 @@ const newCreditsTotal = !safeCurrentPoints
 
       if (mainMode === "entrada") {
         setEntryScanResult(null);
+        setBarDisplay(null);
       } else {
+        setSecurityDisplay(null);
         clearBarResetTimeout();
       }
 
@@ -921,6 +1157,7 @@ const newCreditsTotal = !safeCurrentPoints
         if (mainMode === "entrada") {
           const result = await processEntryQr(rawValue, event!.id, staffId!);
           setEntryScanResult(result);
+          showSecurityDisplay(result);
 
           if (result.success) {
             if (result.result === "gold_entry") {
@@ -999,6 +1236,7 @@ const newCreditsTotal = !safeCurrentPoints
 
           setLastBarToken(token);
           setBarResult(result);
+          showBarDisplay(result);
 
           if (result.ok) {
             if (typeof result.new_balance === "number") {
@@ -1235,6 +1473,285 @@ const newCreditsTotal = !safeCurrentPoints
     );
   };
 
+  if (barDisplay) {
+    const isLegendary = barDisplay.accent === "legendary" || barDisplay.accent === "gold";
+    const isPurple = barDisplay.accent === "purple";
+    const isError = !barDisplay.ok;
+
+    return (
+      <div
+        className={`fixed inset-0 z-[99999] flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br ${barDisplay.color} px-6 text-center text-white`}
+        onClick={() => {
+          clearSecurityDisplayTimeout();
+          setBarDisplay(null);
+
+          setTimeout(() => {
+            focusZebraInput();
+          }, 120);
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.30),transparent_35%),radial-gradient(circle_at_bottom,rgba(0,0,0,0.42),transparent_58%)]" />
+        <div className="pointer-events-none absolute inset-0 animate-pulse bg-white/5" />
+
+        {barDisplay.ok && (
+          <div className="pointer-events-none absolute inset-0 opacity-70">
+            {Array.from({ length: isLegendary ? 34 : isPurple ? 24 : 14 }).map((_, i) => (
+              <span
+                key={i}
+                className={`absolute rounded-full ${
+                  isLegendary
+                    ? "bg-yellow-200/75 shadow-[0_0_18px_rgba(253,224,71,0.9)]"
+                    : isPurple
+                      ? "bg-fuchsia-200/65 shadow-[0_0_16px_rgba(217,70,239,0.75)]"
+                      : "bg-emerald-100/55 shadow-[0_0_14px_rgba(16,185,129,0.65)]"
+                } ${isLegendary ? "h-2.5 w-2.5" : "h-2 w-2"} animate-bounce`}
+                style={{
+                  left: `${(i * 29) % 100}%`,
+                  top: `${(i * 47) % 100}%`,
+                  animationDelay: `${(i % 9) * 0.16}s`,
+                  animationDuration: `${isLegendary ? 1.7 + (i % 5) * 0.18 : 2.2 + (i % 4) * 0.2}s`,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {isLegendary && (
+          <>
+            <div className="pointer-events-none absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-yellow-200/20 blur-3xl animate-pulse" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-transparent via-yellow-200 to-transparent shadow-[0_0_70px_rgba(250,204,21,0.95)]" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2 bg-gradient-to-r from-transparent via-yellow-200 to-transparent shadow-[0_0_70px_rgba(250,204,21,0.95)]" />
+            <div className="pointer-events-none absolute left-6 top-6 text-5xl opacity-70 animate-ping">✦</div>
+            <div className="pointer-events-none absolute right-8 bottom-10 text-5xl opacity-70 animate-ping">✦</div>
+          </>
+        )}
+
+        {isPurple && (
+          <>
+            <div className="pointer-events-none absolute -left-24 top-1/4 h-80 w-80 rounded-full bg-fuchsia-400/20 blur-3xl animate-pulse" />
+            <div className="pointer-events-none absolute -right-24 bottom-1/4 h-80 w-80 rounded-full bg-indigo-300/20 blur-3xl animate-pulse" />
+          </>
+        )}
+
+        <div className="relative z-10 flex w-full max-w-7xl flex-col items-center">
+          <div
+            className={`mb-5 flex items-center justify-center gap-4 rounded-full border px-6 py-3 backdrop-blur ${
+              isLegendary
+                ? "border-yellow-200/60 bg-yellow-200/15 shadow-[0_0_60px_rgba(250,204,21,0.28)]"
+                : isPurple
+                  ? "border-fuchsia-200/45 bg-black/20 shadow-[0_0_50px_rgba(217,70,239,0.22)]"
+                  : "border-white/25 bg-black/20"
+            }`}
+          >
+            {barDisplay.ok ? (
+              isLegendary ? (
+                <Crown className="h-9 w-9 text-yellow-200 md:h-12 md:w-12" />
+              ) : (
+                <CheckCircle className="h-9 w-9 text-white md:h-12 md:w-12" />
+              )
+            ) : (
+              <XCircle className="h-9 w-9 text-white md:h-12 md:w-12" />
+            )}
+
+            <span className="text-xl font-black uppercase tracking-[0.35em] md:text-3xl">
+              HOLY BARRA
+            </span>
+          </div>
+
+          {barDisplay.ok && (
+            <div
+              className={`mb-4 rounded-full border px-5 py-2 text-lg font-black uppercase tracking-[0.35em] backdrop-blur md:text-2xl ${
+                isLegendary
+                  ? "border-yellow-200/70 bg-yellow-200/20 text-yellow-100 shadow-[0_0_45px_rgba(250,204,21,0.35)]"
+                  : isPurple
+                    ? "border-fuchsia-200/50 bg-fuchsia-400/15 text-fuchsia-100"
+                    : "border-white/25 bg-white/10 text-white"
+              }`}
+            >
+              {barDisplay.icon} {barDisplay.rarityLabel} {barDisplay.icon}
+            </div>
+          )}
+
+          <div
+            className={`text-[13vw] font-black leading-[0.85] tracking-[-0.08em] drop-shadow-[0_10px_35px_rgba(0,0,0,0.45)] md:text-[8.2vw] ${
+              isLegendary ? "animate-pulse" : ""
+            }`}
+          >
+            {barDisplay.ok ? "OK" : "ALTO"}
+          </div>
+
+          <h1 className="mt-4 max-w-[95vw] text-[8vw] font-black uppercase leading-[0.9] tracking-[-0.04em] drop-shadow-[0_10px_30px_rgba(0,0,0,0.45)] md:text-[5.2vw]">
+            {barDisplay.title}
+          </h1>
+
+          <div className="mt-5 text-base font-black uppercase tracking-[0.32em] opacity-75 md:text-xl">
+            Qué canjeó
+          </div>
+
+          <div
+            className={`mt-4 rounded-[2rem] border px-8 py-5 shadow-[0_0_90px_rgba(0,0,0,0.28)] backdrop-blur md:px-14 md:py-7 ${
+              isLegendary
+                ? "border-yellow-200/70 bg-yellow-300/20 shadow-[0_0_100px_rgba(250,204,21,0.32)]"
+                : isPurple
+                  ? "border-fuchsia-200/50 bg-black/25 shadow-[0_0_85px_rgba(217,70,239,0.22)]"
+                  : isError
+                    ? "border-white/25 bg-black/25"
+                    : "border-white/25 bg-black/25"
+            }`}
+          >
+            <p className="max-w-[92vw] text-[6.8vw] font-black uppercase leading-none tracking-[-0.045em] md:text-[4.5vw]">
+              {barDisplay.reward}
+            </p>
+          </div>
+
+          {barDisplay.detail && (
+            <div
+              className={`mt-6 rounded-full border px-6 py-3 text-xl font-black uppercase tracking-[0.14em] backdrop-blur md:text-3xl ${
+                isLegendary
+                  ? "border-yellow-200/55 bg-black/22 text-yellow-50"
+                  : "border-white/25 bg-black/20 text-white"
+              }`}
+            >
+              {barDisplay.detail}
+            </div>
+          )}
+
+          <div className="mt-9 text-[7vw] font-black uppercase leading-none tracking-[-0.04em] drop-shadow-[0_8px_25px_rgba(0,0,0,0.35)] md:text-[4.4vw]">
+            {barDisplay.action}
+          </div>
+
+          {isLegendary && barDisplay.ok && (
+            <div className="mt-5 rounded-full border border-yellow-200/45 bg-yellow-200/15 px-6 py-2 text-base font-black uppercase tracking-[0.25em] text-yellow-50 shadow-[0_0_45px_rgba(250,204,21,0.25)] md:text-xl">
+              Premio mayor · verificar entrega
+            </div>
+          )}
+
+          <div className="mt-6 text-lg font-bold uppercase tracking-[0.25em] opacity-75 md:text-2xl">
+            {barDisplay.time}
+          </div>
+
+          <div className="mt-9 text-sm font-semibold uppercase tracking-[0.25em] opacity-55 md:text-base">
+            Tocá la pantalla para volver al scanner
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (securityDisplay) {
+    const isGold = securityDisplay.type === "gold_entry";
+    const isValid = securityDisplay.type === "valid_entry";
+    const isUsed = securityDisplay.type === "used_qr";
+    const isExpired = securityDisplay.type === "expired_qr";
+    const isInvalid = securityDisplay.type === "invalid_qr";
+
+    const screenClass =
+      securityDisplay.color === "green"
+        ? "from-emerald-950 via-emerald-700 to-emerald-500"
+        : securityDisplay.color === "gold"
+          ? "from-yellow-950 via-amber-700 to-yellow-400"
+          : securityDisplay.color === "yellow"
+            ? "from-yellow-950 via-yellow-700 to-orange-500"
+            : "from-red-950 via-red-700 to-red-500";
+
+    const title = isGold
+      ? "INVITADO GOLD"
+      : isValid
+        ? "PUEDE INGRESAR"
+        : isUsed
+          ? "YA INGRESÓ"
+          : isExpired
+            ? "FUERA DE HORARIO"
+            : "NO DEJAR PASAR";
+
+    const subtitle = isGold
+      ? "VIP ENTRY"
+      : isValid
+        ? "LISTA FREE"
+        : isUsed
+          ? "QR YA UTILIZADO"
+          : isExpired
+            ? "QR VENCIDO"
+            : "QR INVÁLIDO";
+
+    return (
+      <div
+        className={`fixed inset-0 z-[99999] flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br ${screenClass} px-6 text-center text-white`}
+        onClick={() => {
+          clearSecurityDisplayTimeout();
+          setSecurityDisplay(null);
+
+          setTimeout(() => {
+            focusZebraInput();
+          }, 120);
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent_38%),radial-gradient(circle_at_bottom,rgba(0,0,0,0.35),transparent_50%)]" />
+        <div className="pointer-events-none absolute inset-0 animate-pulse bg-white/5" />
+
+        <div className="relative z-10 flex w-full max-w-7xl flex-col items-center">
+          <div className="mb-5 flex items-center justify-center gap-4 rounded-full border border-white/25 bg-black/20 px-6 py-3 backdrop-blur">
+            {isGold ? (
+              <Crown className="h-9 w-9 text-yellow-200 md:h-12 md:w-12" />
+            ) : isValid ? (
+              <ShieldCheck className="h-9 w-9 text-emerald-100 md:h-12 md:w-12" />
+            ) : (
+              <XCircle className="h-9 w-9 text-white md:h-12 md:w-12" />
+            )}
+
+            <span className="text-xl font-black uppercase tracking-[0.35em] md:text-3xl">
+              HOLY CONTROL
+            </span>
+          </div>
+
+          <div className="text-[14vw] font-black leading-[0.85] tracking-[-0.08em] drop-shadow-[0_10px_35px_rgba(0,0,0,0.45)] md:text-[9vw]">
+            {isValid || isGold ? "OK" : "ALTO"}
+          </div>
+
+          <h1 className="mt-4 max-w-[95vw] text-[10vw] font-black uppercase leading-[0.9] tracking-[-0.04em] drop-shadow-[0_10px_30px_rgba(0,0,0,0.45)] md:text-[6.6vw]">
+            {title}
+          </h1>
+
+          <div className="mt-6 rounded-[2rem] border border-white/25 bg-black/25 px-8 py-5 shadow-[0_0_70px_rgba(0,0,0,0.25)] backdrop-blur md:px-14 md:py-7">
+            <p className="text-[6vw] font-black uppercase leading-none tracking-[-0.03em] md:text-[4vw]">
+              {securityDisplay.name}
+            </p>
+          </div>
+
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-4">
+            <div className="rounded-full border border-white/25 bg-white/15 px-6 py-3 text-2xl font-black uppercase tracking-[0.18em] backdrop-blur md:text-4xl">
+              {subtitle}
+            </div>
+
+            {securityDisplay.rrpp && (
+              <div className="rounded-full border border-white/25 bg-black/20 px-6 py-3 text-xl font-bold uppercase tracking-[0.12em] backdrop-blur md:text-3xl">
+                RRPP: {securityDisplay.rrpp}
+              </div>
+            )}
+
+            {isValid && securityDisplay.points && securityDisplay.points > 0 && (
+              <div className="rounded-full border border-white/25 bg-black/20 px-6 py-3 text-xl font-black uppercase tracking-[0.12em] backdrop-blur md:text-3xl">
+                +{securityDisplay.points} créditos
+              </div>
+            )}
+          </div>
+
+          <div className="mt-10 text-2xl font-black uppercase tracking-[0.25em] opacity-80 md:text-4xl">
+            {isValid || isGold ? "HABILITAR ENTRADA" : "RECHAZAR ENTRADA"}
+          </div>
+
+          <div className="mt-7 text-lg font-bold uppercase tracking-[0.25em] opacity-70 md:text-2xl">
+            {securityDisplay.time}
+          </div>
+
+          <div className="mt-10 text-sm font-semibold uppercase tracking-[0.25em] opacity-55 md:text-base">
+            Tocá la pantalla para volver al scanner
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!canUseScanner) {
     return (
       <DashboardShell title="HOLY · SCAN QR">
@@ -1313,7 +1830,11 @@ const newCreditsTotal = !safeCurrentPoints
                         <DoorOpen className="h-5 w-5 text-fuchsia-400" />
                         Taquilla / Entrada
                       </h2>
-                      <p className={`mt-1 text-sm ${event ? "text-white/50" : "text-red-400"}`}>
+                      <p
+                        className={`mt-1 text-sm ${
+                          event ? "text-white/50" : "text-red-400"
+                        }`}
+                      >
                         {event ? event.name : "⚠ Sin evento activo"}
                       </p>
                     </div>
@@ -1325,10 +1846,13 @@ const newCreditsTotal = !safeCurrentPoints
                             QR hasta
                           </p>
                           <p className="text-lg font-black text-fuchsia-300">
-                            {new Date(event.qr_entry_until).toLocaleTimeString("es-AR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            {new Date(event.qr_entry_until).toLocaleTimeString(
+                              "es-AR",
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )}
                           </p>
                         </div>
                       )}
@@ -1454,7 +1978,8 @@ const newCreditsTotal = !safeCurrentPoints
                       </div>
 
                       <p className="text-center text-xs text-white/45">
-                        El DS22 entra como teclado. Si no manda Enter, valida solo por timeout.
+                        El DS22 entra como teclado. Si no manda Enter, valida solo por
+                        timeout.
                       </p>
                     </div>
                   )}
@@ -1501,9 +2026,7 @@ const newCreditsTotal = !safeCurrentPoints
                       <Clock className="h-8 w-8 text-white/40" />
                       <div>
                         <h2 className="text-xl font-bold">Esperando escaneo</h2>
-                        <p className="text-sm text-white/50">
-                          Escaneá un QR free o gold
-                        </p>
+                        <p className="text-sm text-white/50">Escaneá un QR free o gold</p>
                       </div>
                     </div>
 
@@ -1518,61 +2041,65 @@ const newCreditsTotal = !safeCurrentPoints
                       </p>
                     </div>
                   </div>
-                ) : (() => {
-                  const cfg = RC[entryScanResult.color] || RC.red;
-                  const Icon = cfg.Icon;
+                ) : (
+                  (() => {
+                    const cfg = RC[entryScanResult.color] || RC.red;
+                    const Icon = cfg.Icon;
 
-                  return (
-                    <div
-                      className={`relative overflow-hidden rounded-[32px] border p-6 text-center ${cfg.bg} ${cfg.shadow}`}
-                    >
-                      {entryScanResult.result === "gold_entry" && (
-                        <>
-                          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.16),transparent_45%)]" />
-                          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/80 to-transparent" />
-                        </>
-                      )}
+                    return (
+                      <div
+                        className={`relative overflow-hidden rounded-[32px] border p-6 text-center ${cfg.bg} ${cfg.shadow}`}
+                      >
+                        {entryScanResult.result === "gold_entry" && (
+                          <>
+                            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.16),transparent_45%)]" />
+                            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/80 to-transparent" />
+                          </>
+                        )}
 
-                      <Icon className={`mx-auto mb-4 h-20 w-20 ${cfg.text}`} />
+                        <Icon className={`mx-auto mb-4 h-20 w-20 ${cfg.text}`} />
 
-                      <div className={`mb-3 text-4xl font-black tracking-[0.2em] ${cfg.text}`}>
-                        {labels[entryScanResult.result]}
+                        <div
+                          className={`mb-3 text-4xl font-black tracking-[0.2em] ${cfg.text}`}
+                        >
+                          {labels[entryScanResult.result]}
+                        </div>
+
+                        <p className="text-xl font-bold text-white">
+                          {entryScanResult.message}
+                        </p>
+
+                        {entryScanResult.rrppName && (
+                          <p className="mt-2 text-sm text-white/60">
+                            RRPP:{" "}
+                            <span className="font-semibold text-fuchsia-300">
+                              {entryScanResult.rrppName}
+                            </span>
+                          </p>
+                        )}
+
+                        {entryScanResult.result === "gold_entry" ? (
+                          <p className="mt-2 text-sm font-semibold text-amber-200">
+                            Acceso VIP confirmado ✦
+                          </p>
+                        ) : entryScanResult.clientPointsAdded &&
+                          entryScanResult.clientPointsAdded > 0 ? (
+                          <p className="mt-2 text-sm font-semibold text-emerald-300">
+                            +{entryScanResult.clientPointsAdded} para el cliente
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-sm text-white/50">
+                            Sin puntos extra: esta cuenta ya cobró este evento
+                          </p>
+                        )}
+
+                        <p className="mt-5 text-xs text-white/35">
+                          {new Date().toLocaleTimeString("es-AR")}
+                        </p>
                       </div>
-
-                      <p className="text-xl font-bold text-white">
-                        {entryScanResult.message}
-                      </p>
-
-                      {entryScanResult.rrppName && (
-                        <p className="mt-2 text-sm text-white/60">
-                          RRPP:{" "}
-                          <span className="font-semibold text-fuchsia-300">
-                            {entryScanResult.rrppName}
-                          </span>
-                        </p>
-                      )}
-
-                      {entryScanResult.result === "gold_entry" ? (
-                        <p className="mt-2 text-sm font-semibold text-amber-200">
-                          Acceso VIP confirmado ✦
-                        </p>
-                      ) : entryScanResult.clientPointsAdded &&
-                        entryScanResult.clientPointsAdded > 0 ? (
-                        <p className="mt-2 text-sm font-semibold text-emerald-300">
-                          +{entryScanResult.clientPointsAdded} para el cliente
-                        </p>
-                      ) : (
-                        <p className="mt-2 text-sm text-white/50">
-                          Sin puntos extra: esta cuenta ya cobró este evento
-                        </p>
-                      )}
-
-                      <p className="mt-5 text-xs text-white/35">
-                        {new Date().toLocaleTimeString("es-AR")}
-                      </p>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()
+                )}
 
                 {recentEntries.length > 0 && (
                   <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -1595,7 +2122,9 @@ const newCreditsTotal = !safeCurrentPoints
                           <div className="text-right">
                             <p
                               className={`text-xs font-bold ${
-                                e.color === "gold" ? "text-amber-300" : "text-emerald-300"
+                                e.color === "gold"
+                                  ? "text-amber-300"
+                                  : "text-emerald-300"
                               }`}
                             >
                               {e.color === "gold" ? "GOLD" : "FREE"}
@@ -1640,7 +2169,7 @@ const newCreditsTotal = !safeCurrentPoints
                 </div>
               ) : (
                 <div
-                  className={`relative overflow-hidden rounded-[26px] border px-4 py-3 md:px-4 md:py-4 transition-all duration-300 ${
+                  className={`relative overflow-hidden rounded-[26px] border px-4 py-3 transition-all duration-300 md:px-4 md:py-4 ${
                     barResult.ok
                       ? "border-emerald-400/40 bg-emerald-500/10 shadow-[0_0_60px_rgba(16,185,129,0.16)]"
                       : "border-red-400/40 bg-red-500/10 shadow-[0_0_60px_rgba(239,68,68,0.16)]"
@@ -1736,7 +2265,9 @@ const newCreditsTotal = !safeCurrentPoints
                         {!!barResult.code && !barResult.ok && (
                           <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/75">
                             Code:{" "}
-                            <span className="font-black text-red-300">{barResult.code}</span>
+                            <span className="font-black text-red-300">
+                              {barResult.code}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -1844,7 +2375,8 @@ const newCreditsTotal = !safeCurrentPoints
                     </div>
 
                     <p className="text-center text-xs text-white/45">
-                      El DS22 entra como teclado. Si no manda Enter, valida solo por timeout.
+                      El DS22 entra como teclado. Si no manda Enter, valida solo por
+                      timeout.
                     </p>
                   </div>
                 )}
@@ -1902,14 +2434,20 @@ const newCreditsTotal = !safeCurrentPoints
                         className="flex items-center justify-between border-b border-white/5 py-3 last:border-0"
                       >
                         <div>
-                          <p className="text-sm font-semibold text-white">{item.title}</p>
-                          <p className="mt-0.5 text-xs text-white/45">{item.detail}</p>
+                          <p className="text-sm font-semibold text-white">
+                            {item.title}
+                          </p>
+                          <p className="mt-0.5 text-xs text-white/45">
+                            {item.detail}
+                          </p>
                         </div>
 
                         <div className="text-right">
                           <p
                             className={`text-xs font-bold ${
-                              item.status === "ok" ? "text-emerald-300" : "text-red-300"
+                              item.status === "ok"
+                                ? "text-emerald-300"
+                                : "text-red-300"
                             }`}
                           >
                             {item.status === "ok" ? "OK" : "ERROR"}
