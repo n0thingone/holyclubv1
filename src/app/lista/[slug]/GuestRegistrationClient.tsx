@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { generateQrToken, formatTime, formatDate } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
@@ -12,6 +12,8 @@ import {
   Share2,
   LogIn,
   Sparkles,
+  Download,
+  Home,
 } from "lucide-react";
 import type { Event, RrppProfile } from "@/types";
 
@@ -40,6 +42,7 @@ export default function GuestRegistrationClient({
   isRegistrationOpen,
 }: Props) {
   const supabase = getSupabaseClient();
+  const qrWrapRef = useRef<HTMLDivElement | null>(null);
 
   const [form, setForm] = useState<FormData>({
     first_name: "",
@@ -50,6 +53,7 @@ export default function GuestRegistrationClient({
   const [loading, setLoading] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [error, setError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
   const [result, setResult] = useState<RegistrationResult | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -82,8 +86,135 @@ export default function GuestRegistrationClient({
 
   function goToLogin() {
     if (typeof window === "undefined") return;
-    const next = encodeURIComponent(window.location.pathname);
-    window.location.href = `/login?next=${next}`;
+
+    const next = encodeURIComponent(
+      window.location.pathname + window.location.search
+    );
+
+    window.location.href = `/login?next=${next}&redirect=${next}`;
+  }
+
+  function goToDashboard() {
+    if (typeof window === "undefined") return;
+    window.location.href = "/dashboard";
+  }
+
+  async function getQrPngBlob(): Promise<Blob | null> {
+    const svg = qrWrapRef.current?.querySelector("svg");
+    if (!svg) return null;
+
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svg);
+
+    const svgBlob = new Blob([svgString], {
+      type: "image/svg+xml;charset=utf-8",
+    });
+
+    const url = URL.createObjectURL(svgBlob);
+
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("No se pudo cargar el QR"));
+        img.src = url;
+      });
+
+      const canvas = document.createElement("canvas");
+      const size = 900;
+      canvas.width = size;
+      canvas.height = size;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, 80, 80, size - 160, size - 160);
+
+      return await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), "image/png", 1);
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function saveQrImage() {
+    if (!result || typeof window === "undefined") return;
+
+    setSaveMessage("");
+
+    try {
+      const blob = await getQrPngBlob();
+
+      if (!blob) {
+        setSaveMessage("No se pudo generar la imagen. Sacá captura del QR.");
+        return;
+      }
+
+      const file = new File(
+        [blob],
+        `holy-qr-${result.first_name}-${result.last_name}.png`,
+        { type: "image/png" }
+      );
+
+      const nav = navigator as Navigator & {
+        canShare?: (data: ShareData) => boolean;
+        share?: (data: ShareData) => Promise<void>;
+      };
+
+      if (
+        nav.share &&
+        nav.canShare &&
+        nav.canShare({
+          files: [file],
+        } as ShareData)
+      ) {
+        await nav.share({
+          title: "Holy Club — Mi QR de entrada",
+          text: `QR de ingreso para ${result.first_name} ${result.last_name}`,
+          files: [file],
+        } as ShareData);
+
+        setSaveMessage("Listo. Desde el menú podés guardarlo en Fotos/Galería.");
+        return;
+      }
+
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(downloadUrl);
+
+      setSaveMessage("QR descargado. En celular, también podés sacar captura.");
+    } catch (err) {
+      console.error("Error guardando QR:", err);
+      setSaveMessage("No se pudo guardar. Sacá captura del QR por seguridad.");
+    }
+  }
+
+  async function shareQr() {
+    if (!result || typeof navigator === "undefined" || !("share" in navigator)) {
+      return;
+    }
+
+    try {
+      await (navigator as Navigator & {
+        share: (data: ShareData) => Promise<void>;
+      }).share({
+        title: "Holy Club — Mi QR de entrada",
+        text: `QR de ingreso para ${result.first_name} ${result.last_name}`,
+        url: window.location.href,
+      });
+    } catch (err) {
+      console.error("Error sharing QR:", err);
+    }
   }
 
   if (!rrpp) {
@@ -147,6 +278,7 @@ export default function GuestRegistrationClient({
 
     setLoading(true);
     setError("");
+    setSaveMessage("");
 
     if (!/^\d{3}$/.test(form.dni_last3)) {
       setError("Los últimos 3 dígitos del DNI deben ser números");
@@ -168,9 +300,9 @@ export default function GuestRegistrationClient({
       entry_points_awarded: false,
     };
 
-  const { error: insertError } = await (supabase as any)
-  .from("guest_registrations")
-  .insert(payload);
+    const { error: insertError } = await (supabase as any)
+      .from("guest_registrations")
+      .insert(payload);
 
     if (insertError) {
       console.error("Error insertando invitado:", insertError);
@@ -187,24 +319,6 @@ export default function GuestRegistrationClient({
     });
 
     setLoading(false);
-  }
-
-  async function shareQr() {
-    if (!result || typeof navigator === "undefined" || !("share" in navigator)) {
-      return;
-    }
-
-    try {
-      await (navigator as Navigator & {
-        share: (data: ShareData) => Promise<void>;
-      }).share({
-        title: "Holy Club — Mi QR de entrada",
-        text: `QR de ingreso para ${result.first_name} ${result.last_name}`,
-        url: window.location.href,
-      });
-    } catch (err) {
-      console.error("Error sharing QR:", err);
-    }
   }
 
   if (result) {
@@ -231,6 +345,7 @@ export default function GuestRegistrationClient({
             <p className="font-display text-2xl font-black tracking-wide text-white mb-1">
               {result.first_name} {result.last_name}
             </p>
+
             <p className="text-text-muted text-sm mb-3">
               Invitado por{" "}
               <span className="text-accent-purple font-semibold">
@@ -245,7 +360,8 @@ export default function GuestRegistrationClient({
                   Vinculado a tu cuenta
                 </p>
                 <p className="text-text-muted text-xs mt-1">
-                  Cuando escaneen este QR, tu ingreso quedará asociado a tu usuario
+                  Cuando escaneen este QR, tu ingreso quedará asociado a tu
+                  usuario.
                 </p>
               </div>
             ) : (
@@ -254,12 +370,16 @@ export default function GuestRegistrationClient({
                   Registro sin cuenta
                 </p>
                 <p className="text-text-muted text-xs mt-1">
-                  Tu QR funciona igual, pero este ingreso no queda vinculado a una cuenta
+                  Tu QR funciona igual, pero este ingreso no queda vinculado a
+                  una cuenta.
                 </p>
               </div>
             )}
 
-            <div className="bg-white rounded-2xl p-5 inline-block mx-auto mb-4 shadow-purple">
+            <div
+              ref={qrWrapRef}
+              className="bg-white rounded-2xl p-5 inline-block mx-auto mb-4 shadow-purple"
+            >
               <QRCodeSVG
                 value={result.qr_token}
                 size={200}
@@ -271,6 +391,7 @@ export default function GuestRegistrationClient({
             <p className="text-text-muted text-xs tracking-widest uppercase mb-2">
               Mostrá este QR en la puerta
             </p>
+
             <p className="font-mono text-xs text-text-muted/50 break-all">
               {result.qr_token}
             </p>
@@ -291,14 +412,45 @@ export default function GuestRegistrationClient({
             </div>
           </div>
 
-          <button onClick={shareQr} className="holy-btn-secondary">
-            <Share2 className="w-4 h-4 inline-block mr-2" />
-            COMPARTIR QR
-          </button>
+          <div className="space-y-3">
+            <button onClick={saveQrImage} className="holy-btn-primary w-full">
+              <Download className="w-4 h-4 inline-block mr-2" />
+              GUARDAR QR
+            </button>
 
-          <p className="text-text-muted text-xs">
-            Guardá una captura de pantalla de tu QR
-          </p>
+            <button onClick={shareQr} className="holy-btn-secondary w-full">
+              <Share2 className="w-4 h-4 inline-block mr-2" />
+              COMPARTIR
+            </button>
+
+            {isLogged ? (
+              <button
+                type="button"
+                onClick={goToDashboard}
+                className="holy-btn-secondary w-full"
+              >
+                <Home className="w-4 h-4 inline-block mr-2" />
+                VOLVER AL MENÚ
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={goToLogin}
+                className="holy-btn-secondary w-full"
+              >
+                <LogIn className="w-4 h-4 inline-block mr-2" />
+                INICIAR SESIÓN
+              </button>
+            )}
+
+            {saveMessage && (
+              <p className="text-warning text-xs px-3">{saveMessage}</p>
+            )}
+
+            <p className="text-text-muted text-xs">
+              No cierres esta pantalla sin guardar el QR o sacar captura.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -329,10 +481,15 @@ export default function GuestRegistrationClient({
               Lista Free Activa
             </span>
           </div>
+
           <p className="font-display text-lg font-bold text-white">
             {event.name}
           </p>
-          <p className="text-text-muted text-sm">{formatDate(event.event_date)}</p>
+
+          <p className="text-text-muted text-sm">
+            {formatDate(event.event_date)}
+          </p>
+
           <div className="flex items-center gap-1.5 mt-2">
             <Clock className="w-3.5 h-3.5 text-warning" />
             <p className="text-warning text-xs">
@@ -355,6 +512,15 @@ export default function GuestRegistrationClient({
               <p className="text-text-muted text-xs mt-1">
                 {userEmail || "Usuario autenticado"}
               </p>
+
+              <button
+                type="button"
+                onClick={goToDashboard}
+                className="holy-btn-secondary w-full mt-3"
+              >
+                <Home className="w-4 h-4 inline-block mr-2" />
+                VOLVER AL MENÚ
+              </button>
             </div>
           ) : (
             <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-3 mb-4">
@@ -362,8 +528,8 @@ export default function GuestRegistrationClient({
                 Estás anotándote sin cuenta
               </p>
               <p className="text-text-muted text-xs mt-1 mb-3">
-                Tu QR funciona igual. Si querés vincular el ingreso a tu usuario,
-                iniciá sesión antes de anotarte.
+                Tu QR funciona igual. Si querés vincular el ingreso a tu
+                usuario, iniciá sesión antes de anotarte.
               </p>
               <button
                 type="button"

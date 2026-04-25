@@ -1035,9 +1035,26 @@ export default function ScanPage() {
 
   const processBarQr = useCallback(
     async (rawValue: string): Promise<{ token: string; result: RedeemResponse }> => {
-      const token = normalizeScannerToken(rawValue);
+      const scannerToken = normalizeScannerToken(rawValue);
 
-      if (!token) {
+      // Token para mostrar / usar en canjes normales.
+      let token = scannerToken
+        .replace(/^HOLY-REWARD/i, "")
+        .replace(/^HOLY:/i, "")
+        .replace(/^RRPP:/i, "")
+        .trim();
+
+      // Token especial para QR de consumición RRPP.
+      // Ejemplo leído por scanner: HOLYRRPP40AD769019CA4A44B044FCD3DE118E38
+      // En DB: 40ad7690-19ca-4a44-b044-fcd3de118e38
+      const rrppToken = scannerToken
+        .replace(/^HOLY-?RRPP/i, "")
+        .replace(/^RRPP/i, "")
+        .replace(/^HOLY/i, "")
+        .replace(/-/g, "")
+        .trim();
+
+      if (!scannerToken && !token && !rrppToken) {
         return {
           token: "",
           result: {
@@ -1048,13 +1065,205 @@ export default function ScanPage() {
         };
       }
 
+      const tokenVariants = buildTokenVariants(rawValue);
+      const cleanVariants = buildTokenVariants(token);
+      const allVariants = Array.from(
+        new Set([scannerToken, token, rrppToken, ...tokenVariants, ...cleanVariants])
+      ).filter(Boolean);
+
+      // 1) PRIMERO: CONSUMICIÓN RRPP POR EVENTO
+      try {
+        let rrppReward: any = null;
+        let rrppError: any = null;
+
+        // Búsqueda directa por variantes exactas.
+        for (const variant of allVariants) {
+          const { data, error } = await supabase
+            .from("rrpp_event_rewards")
+            .select("*")
+            .eq("qr_token", variant)
+            .maybeSingle();
+
+          if (error) {
+            rrppError = error;
+            break;
+          }
+
+          if (data) {
+            rrppReward = data;
+            break;
+          }
+        }
+
+        if (rrppError) {
+          console.error("Error buscando QR RRPP:", rrppError);
+        }
+
+        // Fallback fuerte: trae las consumiciones del evento y compara sin guiones / prefijos.
+        if (!rrppReward) {
+          let query = supabase
+            .from("rrpp_event_rewards")
+            .select("*")
+            .limit(1500);
+
+          if (event?.id) {
+            query = query.eq("event_id", event.id);
+          }
+
+          const { data: candidates, error: fallbackError } = await query;
+
+          if (fallbackError) {
+            console.error("Error fallback QR RRPP:", fallbackError);
+          } else {
+            const compactScanned = scannerToken.replace(/-/g, "").toUpperCase();
+            const compactClean = token.replace(/-/g, "").toUpperCase();
+            const compactRrpp = rrppToken.replace(/-/g, "").toUpperCase();
+
+            rrppReward =
+              candidates?.find((row: any) => {
+                const dbCompact = String(row.qr_token || "")
+                  .toUpperCase()
+                  .replace(/-/g, "")
+                  .trim();
+
+                return (
+                  dbCompact === compactScanned ||
+                  dbCompact === compactClean ||
+                  dbCompact === compactRrpp ||
+                  compactScanned.endsWith(dbCompact) ||
+                  compactClean.endsWith(dbCompact) ||
+                  compactRrpp.endsWith(dbCompact)
+                );
+              }) ||
+              candidates?.find((row: any) =>
+                tokenMatchesDb(row.qr_token || "", rawValue)
+              ) ||
+              candidates?.find((row: any) =>
+                tokenMatchesDb(row.qr_token || "", token)
+              ) ||
+              null;
+          }
+        }
+
+        if (rrppReward) {
+          const status = String(rrppReward.status || "").toLowerCase();
+
+          if (status === "used" || status === "redeemed") {
+            return {
+              token: rrppToken || token || scannerToken,
+              result: {
+                ok: false,
+                code: "already_used",
+                message: "Consumición RRPP ya utilizada",
+                reward_name: rrppReward.title || "CONSUMICIÓN RRPP",
+                reward: rrppReward.title || "CONSUMICIÓN RRPP",
+                source: "rrpp_event_rewards",
+              },
+            };
+          }
+
+          if (status !== "unlocked" && status !== "active" && status !== "available") {
+            return {
+              token: rrppToken || token || scannerToken,
+              result: {
+                ok: false,
+                code: "not_available",
+                message: "Consumición RRPP no disponible",
+                reward_name: rrppReward.title || "CONSUMICIÓN RRPP",
+                reward: rrppReward.title || "CONSUMICIÓN RRPP",
+                source: "rrpp_event_rewards",
+              },
+            };
+          }
+
+          if (
+            rrppReward.event_id &&
+            event?.id &&
+            String(rrppReward.event_id) !== String(event.id)
+          ) {
+            return {
+              token: rrppToken || token || scannerToken,
+              result: {
+                ok: false,
+                code: "wrong_event",
+                message: "Esta consumición no corresponde al evento actual",
+                reward_name: rrppReward.title || "CONSUMICIÓN RRPP",
+                reward: rrppReward.title || "CONSUMICIÓN RRPP",
+                source: "rrpp_event_rewards",
+              },
+            };
+          }
+
+          if (
+            rrppReward.expires_at &&
+            new Date(rrppReward.expires_at).getTime() < Date.now()
+          ) {
+            return {
+              token: rrppToken || token || scannerToken,
+              result: {
+                ok: false,
+                code: "expired",
+                message: "Consumición RRPP vencida",
+                reward_name: rrppReward.title || "CONSUMICIÓN RRPP",
+                reward: rrppReward.title || "CONSUMICIÓN RRPP",
+                source: "rrpp_event_rewards",
+              },
+            };
+          }
+
+          const updatePayload: any = {
+            status: "redeemed",
+            redeemed_at: new Date().toISOString(),
+          };
+
+          if (staffId) updatePayload.redeemed_by = staffId;
+
+          const { error: updateError } = await (supabase as any)
+            .from("rrpp_event_rewards")
+            .update(updatePayload)
+            .eq("id", rrppReward.id);
+
+          if (updateError) {
+            console.error("Error marcando consumición RRPP:", updateError);
+
+            return {
+              token: rrppToken || token || scannerToken,
+              result: {
+                ok: false,
+                code: "rrpp_update_error",
+                message: "No se pudo marcar la consumición como usada",
+                reward_name: rrppReward.title || "CONSUMICIÓN RRPP",
+                reward: rrppReward.title || "CONSUMICIÓN RRPP",
+                source: "rrpp_event_rewards",
+              },
+            };
+          }
+
+          return {
+            token: rrppToken || token || scannerToken,
+            result: {
+              ok: true,
+              code: "rrpp_consumption",
+              message: "Consumición RRPP confirmada",
+              reward_name: rrppReward.title || "CONSUMICIÓN FREE",
+              reward: rrppReward.title || "CONSUMICIÓN FREE",
+              points_cost: null,
+              source: "rrpp_event_rewards",
+            },
+          };
+        }
+      } catch (err) {
+        console.error("Error procesando QR RRPP:", err);
+      }
+
+      // 2) SI NO ES RRPP: CANJE NORMAL DE REWARDS
       const { data, error } = await supabase.rpc("redeem_reward_qr", {
-        p_qr_token: token,
+        p_qr_token: token || scannerToken,
       });
 
       if (error) {
         return {
-          token,
+          token: token || scannerToken,
           result: {
             ok: false,
             code: "rpc_error",
@@ -1076,9 +1285,7 @@ export default function ScanPage() {
           let rewardId = result.reward_id || null;
 
           if (!rewardId) {
-            const tokenVariants = buildTokenVariants(rawValue);
-
-            for (const variant of [token, ...tokenVariants]) {
+            for (const variant of allVariants) {
               const { data: redemption } = await supabase
                 .from("holy_redemptions")
                 .select("reward_id")
@@ -1117,10 +1324,11 @@ export default function ScanPage() {
         }
       }
 
-      return { token, result };
+      return { token: token || scannerToken, result };
     },
-    [supabase]
+    [supabase, event?.id, staffId]
   );
+
 
   const handleUnifiedScan = useCallback(
     async (rawValue: string) => {

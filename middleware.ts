@@ -4,9 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_ROUTES = ["/login", "/lista"];
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request,
-  });
+  let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,14 +38,24 @@ export async function middleware(request: NextRequest) {
   const isPublic = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
 
   if (!user && !isPublic) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+    const loginUrl = request.nextUrl.clone();
+
+    const redirectTo =
+      request.nextUrl.pathname + request.nextUrl.search;
+
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("redirect", redirectTo);
+
+    return NextResponse.redirect(loginUrl);
   }
 
   if (user && pathname === "/login") {
+    const redirect = request.nextUrl.searchParams.get("redirect");
+
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = redirect || "/dashboard";
+    url.search = "";
+
     return NextResponse.redirect(url);
   }
 

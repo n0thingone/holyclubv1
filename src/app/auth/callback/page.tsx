@@ -10,6 +10,15 @@ export default function AuthCallbackPage() {
   const [message, setMessage] = useState("Procesando login.");
   const [debug, setDebug] = useState("");
 
+  function goAfterLogin() {
+    const redirect =
+      localStorage.getItem("holy_redirect") || "/dashboard/puntos/home";
+
+    localStorage.removeItem("holy_redirect");
+
+    router.replace(redirect);
+  }
+
   useEffect(() => {
     if (ranRef.current) return;
     ranRef.current = true;
@@ -29,7 +38,6 @@ export default function AuthCallbackPage() {
         console.log("CODE:", code);
         console.log("HASH TOKEN:", accessToken);
 
-        // 1) PRIMERO: si Supabase ya armó la sesión solo, entramos directo
         setMessage("Verificando sesión...");
 
         const {
@@ -42,11 +50,10 @@ export default function AuthCallbackPage() {
         }
 
         if (existingSession?.user) {
-          router.replace("/dashboard/puntos/home");
+          goAfterLogin();
           return;
         }
 
-        // 2) Si vino por ?code=, hacemos exchange
         if (code) {
           setMessage("Intercambiando sesión...");
 
@@ -59,11 +66,10 @@ export default function AuthCallbackPage() {
             return;
           }
 
-          router.replace("/dashboard/puntos/home");
+          goAfterLogin();
           return;
         }
 
-        // 3) Si vino por hash, damos un pequeño margen a Supabase
         if (accessToken) {
           setMessage("Detectando sesión...");
 
@@ -82,7 +88,7 @@ export default function AuthCallbackPage() {
           }
 
           if (session?.user) {
-            router.replace("/dashboard/puntos/home");
+            goAfterLogin();
             return;
           }
 
@@ -91,7 +97,6 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        // 4) Último intento: esperamos un toque por si la sesión entra tarde
         setMessage("Esperando confirmación de login...");
 
         await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -106,11 +111,10 @@ export default function AuthCallbackPage() {
         }
 
         if (delayedSession?.user) {
-          router.replace("/dashboard/puntos/home");
+          goAfterLogin();
           return;
         }
 
-        // 5) Recién acá damos error real
         setMessage("No se pudo identificar login");
         setDebug("Ni code ni access_token encontrados, y no hay sesión activa.");
       } catch (err: any) {

@@ -42,25 +42,36 @@ export default function LoginPage() {
         setStageColor(step.color);
 
         if (step.text.includes("novio")) {
-          if (navigator.vibrate) {
-            navigator.vibrate([50, 30, 50]);
-          }
+          navigator.vibrate?.([50, 30, 50]);
         }
 
-        await new Promise((r) => setTimeout(r, i === steps.length - 1 ? 850 : 650));
+        await new Promise((r) =>
+          setTimeout(r, i === steps.length - 1 ? 850 : 650)
+        );
       }
 
-      if (navigator.vibrate) {
-        navigator.vibrate([80, 40, 120, 40, 180]);
-      }
+      navigator.vibrate?.([80, 40, 120, 40, 180]);
 
       try {
         await audioRef.current?.play();
-      } catch {
-        // algunos navegadores bloquean audio
-      }
+      } catch {}
 
       await new Promise((r) => setTimeout(r, 400));
+
+      // 🔥 FIX CLAVE: guardar redirect real
+      const params = new URLSearchParams(window.location.search);
+
+      let redirect =
+        params.get("redirect") ||
+        params.get("next") ||
+        "/dashboard/puntos/home";
+
+      // normalizamos por si viene raro
+      if (!redirect.startsWith("/")) {
+        redirect = "/dashboard/puntos/home";
+      }
+
+      localStorage.setItem("holy_redirect", redirect);
 
       const redirectTo = `${window.location.origin}/auth/callback`;
 
@@ -180,11 +191,7 @@ export default function LoginPage() {
         </div>
       )}
 
-      <audio
-        ref={audioRef}
-        preload="auto"
-        src="/sounds/holy-access.mp3"
-      />
+      <audio ref={audioRef} preload="auto" src="/sounds/holy-access.mp3" />
     </main>
   );
 }
