@@ -31,18 +31,16 @@ type EventRow = {
 
 type FormState = {
   name: string;
-  event_date: string;
-  start_time: string;
-  end_time: string;
+  event_start: string;
+  event_end: string;
   registration_until: string;
   qr_entry_until: string;
 };
 
 const initialForm: FormState = {
   name: "",
-  event_date: "",
-  start_time: "",
-  end_time: "",
+  event_start: "",
+  event_end: "",
   registration_until: "",
   qr_entry_until: "",
 };
@@ -105,11 +103,11 @@ export default function AdminEventosPage() {
       return;
     }
 
-  const { data: profileData, error: profileError } = await supabase
-  .from("profiles")
-  .select("role")
-  .eq("id", user.id)
-  .maybeSingle<{ role: string | null }>();
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle<{ role: string | null }>();
 
     if (profileError) {
       setErrorMessage(profileError.message || "No se pudo cargar el perfil.");
@@ -117,7 +115,7 @@ export default function AdminEventosPage() {
       return;
     }
 
-  setUserRole(String(profileData?.role || "").toLowerCase());
+    setUserRole(String(profileData?.role || "").toLowerCase());
 
     const { data, error } = await supabase
       .from("events")
@@ -147,9 +145,32 @@ export default function AdminEventosPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function toIso(value: string) {
+    return new Date(value).toISOString();
+  }
+
+  function getDateOnly(value: string) {
+    if (!value) return null;
+    return value.slice(0, 10);
+  }
+
+  function getTimeOnly(value: string) {
+    if (!value) return null;
+    return value.slice(11, 16);
+  }
+
   function formatDate(date: string | null) {
     if (!date) return "Sin fecha";
+
     try {
+      if (date.includes("T")) {
+        return new Date(date).toLocaleDateString("es-AR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+      }
+
       return new Date(`${date}T00:00:00`).toLocaleDateString("es-AR", {
         day: "2-digit",
         month: "2-digit",
@@ -167,6 +188,7 @@ export default function AdminEventosPage() {
 
   function formatDateTime(dateTime: string | null) {
     if (!dateTime) return "--:--";
+
     try {
       return new Date(dateTime).toLocaleString("es-AR", {
         day: "2-digit",
@@ -177,11 +199,6 @@ export default function AdminEventosPage() {
     } catch {
       return dateTime;
     }
-  }
-
-  function buildDateTime(date: string, time: string) {
-    if (!date || !time) return null;
-    return new Date(`${date}T${time}:00`).toISOString();
   }
 
   function resetMessages() {
@@ -197,39 +214,80 @@ export default function AdminEventosPage() {
       return;
     }
 
-    if (!form.event_date) {
-      setErrorMessage("Elegí la fecha del evento.");
+    if (!form.event_start) {
+      setErrorMessage("Elegí fecha y hora de inicio.");
       return;
     }
 
-    if (!form.start_time) {
-      setErrorMessage("Elegí la hora de inicio.");
-      return;
-    }
-
-    if (!form.end_time) {
-      setErrorMessage("Elegí la hora de cierre.");
+    if (!form.event_end) {
+      setErrorMessage("Elegí fecha y hora de cierre.");
       return;
     }
 
     if (!form.registration_until) {
-      setErrorMessage("Elegí hasta qué hora se permiten registros.");
+      setErrorMessage("Elegí hasta cuándo se permiten registros.");
       return;
     }
 
     if (!form.qr_entry_until) {
-      setErrorMessage("Elegí hasta qué hora vale el QR.");
+      setErrorMessage("Elegí hasta cuándo vale el QR de entrada.");
+      return;
+    }
+
+    const eventStartMs = new Date(form.event_start).getTime();
+    const eventEndMs = new Date(form.event_end).getTime();
+    const registrationMs = new Date(form.registration_until).getTime();
+    const qrMs = new Date(form.qr_entry_until).getTime();
+
+    if (
+      Number.isNaN(eventStartMs) ||
+      Number.isNaN(eventEndMs) ||
+      Number.isNaN(registrationMs) ||
+      Number.isNaN(qrMs)
+    ) {
+      setErrorMessage("Hay una fecha inválida. Revisá los campos.");
+      return;
+    }
+
+    if (eventEndMs <= eventStartMs) {
+      setErrorMessage("El cierre del evento tiene que ser después del inicio.");
+      return;
+    }
+
+    if (registrationMs <= eventStartMs) {
+      setErrorMessage(
+        "El cierre de registros tiene que ser después del inicio del evento."
+      );
+      return;
+    }
+
+    if (registrationMs > eventEndMs) {
+      setErrorMessage(
+        "El cierre de registros no debería ser después del cierre del evento."
+      );
+      return;
+    }
+
+    if (qrMs <= eventStartMs) {
+      setErrorMessage(
+        "El QR de entrada tiene que seguir válido después del inicio del evento."
+      );
+      return;
+    }
+
+    if (qrMs > eventEndMs) {
+      setErrorMessage(
+        "El QR de entrada no debería seguir válido después del cierre del evento."
+      );
       return;
     }
 
     setSaving(true);
 
-    const eventEndAt = buildDateTime(form.event_date, form.end_time);
-    const registrationUntil = buildDateTime(
-      form.event_date,
-      form.registration_until
-    );
-    const qrEntryUntil = buildDateTime(form.event_date, form.qr_entry_until);
+    const eventStartIso = toIso(form.event_start);
+    const eventEndIso = toIso(form.event_end);
+    const registrationUntilIso = toIso(form.registration_until);
+    const qrEntryUntilIso = toIso(form.qr_entry_until);
 
     const {
       data: { user },
@@ -237,21 +295,25 @@ export default function AdminEventosPage() {
 
     const payload = {
       name: form.name.trim(),
-      event_date: form.event_date,
-      start_time: form.start_time,
-      end_time: form.end_time,
-      registration_until: registrationUntil,
-      qr_entry_until: qrEntryUntil,
-      event_end_at: eventEndAt,
+
+      // Mantengo compatibilidad:
+      // event_date puede ser timestamp si tu DB lo acepta.
+      // start_time/end_time quedan como hora simple para mostrar horarios.
+      event_date: eventStartIso,
+      start_time: getTimeOnly(form.event_start),
+      end_time: getTimeOnly(form.event_end),
+
+      registration_until: registrationUntilIso,
+      qr_entry_until: qrEntryUntilIso,
+      event_end_at: eventEndIso,
+
       is_active: false,
       is_closed: false,
       status: "draft",
       created_by: user?.id ?? null,
     };
 
-   const { error } = await (supabase as any)
-  .from("events")
-  .insert(payload);
+    const { error } = await (supabase as any).from("events").insert(payload);
 
     if (error) {
       setErrorMessage(
@@ -271,13 +333,13 @@ export default function AdminEventosPage() {
     resetMessages();
     setSaving(true);
 
-   const { error: deactivateError } = await (supabase as any)
-  .from("events")
-  .update({
-    is_active: false,
-    status: "inactive",
-  })
-  .or("is_active.eq.true,status.eq.active");
+    const { error: deactivateError } = await (supabase as any)
+      .from("events")
+      .update({
+        is_active: false,
+        status: "inactive",
+      })
+      .or("is_active.eq.true,status.eq.active");
 
     if (deactivateError) {
       setErrorMessage(
@@ -287,15 +349,15 @@ export default function AdminEventosPage() {
       return;
     }
 
-  const { error: activateError } = await (supabase as any)
-  .from("events")
-  .update({
-    is_active: true,
-    is_closed: false,
-    closed_at: null,
-    status: "active",
-  })
-  .eq("id", eventId);
+    const { error: activateError } = await (supabase as any)
+      .from("events")
+      .update({
+        is_active: true,
+        is_closed: false,
+        closed_at: null,
+        status: "active",
+      })
+      .eq("id", eventId);
 
     if (activateError) {
       setErrorMessage(
@@ -314,15 +376,15 @@ export default function AdminEventosPage() {
     resetMessages();
     setSaving(true);
 
- const { error } = await (supabase as any)
-  .from("events")
-  .update({
-    is_active: false,
-    is_closed: true,
-    closed_at: new Date().toISOString(),
-    status: "closed",
-  })
-  .eq("id", eventId);
+    const { error } = await (supabase as any)
+      .from("events")
+      .update({
+        is_active: false,
+        is_closed: true,
+        closed_at: new Date().toISOString(),
+        status: "closed",
+      })
+      .eq("id", eventId);
 
     if (error) {
       setErrorMessage(error.message || "No se pudo cerrar el evento.");
@@ -397,7 +459,7 @@ export default function AdminEventosPage() {
         )}
 
         <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-          <section className="rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_0_40px_rgba(0,0,0,0.25)]">
+          <section className="rounded-[28px] border border-fuchsia-400/20 bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.18),rgba(0,0,0,0.25)_45%,rgba(0,0,0,0.45))] p-5 shadow-[0_0_45px_rgba(217,70,239,0.12)]">
             <div className="mb-4 flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-fuchsia-300" />
               <h2 className="text-lg font-black text-white">Crear evento</h2>
@@ -418,14 +480,14 @@ export default function AdminEventosPage() {
 
               <label className="block">
                 <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-white/50">
-                  Fecha
+                  Inicio del evento
                 </span>
                 <div className="relative">
                   <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                   <input
-                    type="date"
-                    value={form.event_date}
-                    onChange={(e) => updateForm("event_date", e.target.value)}
+                    type="datetime-local"
+                    value={form.event_start}
+                    onChange={(e) => updateForm("event_start", e.target.value)}
                     className="w-full rounded-2xl border border-white/10 bg-black/40 py-3 pl-11 pr-4 text-white outline-none transition focus:border-fuchsia-400/50"
                   />
                 </div>
@@ -433,14 +495,14 @@ export default function AdminEventosPage() {
 
               <label className="block">
                 <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-white/50">
-                  Hora inicio
+                  Cierre del evento
                 </span>
                 <div className="relative">
                   <Clock3 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                   <input
-                    type="time"
-                    value={form.start_time}
-                    onChange={(e) => updateForm("start_time", e.target.value)}
+                    type="datetime-local"
+                    value={form.event_end}
+                    onChange={(e) => updateForm("event_end", e.target.value)}
                     className="w-full rounded-2xl border border-white/10 bg-black/40 py-3 pl-11 pr-4 text-white outline-none transition focus:border-fuchsia-400/50"
                   />
                 </div>
@@ -448,27 +510,12 @@ export default function AdminEventosPage() {
 
               <label className="block">
                 <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-white/50">
-                  Hora cierre
+                  Lista / registros hasta
                 </span>
                 <div className="relative">
                   <Clock3 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                   <input
-                    type="time"
-                    value={form.end_time}
-                    onChange={(e) => updateForm("end_time", e.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/40 py-3 pl-11 pr-4 text-white outline-none transition focus:border-fuchsia-400/50"
-                  />
-                </div>
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-white/50">
-                  Registros hasta
-                </span>
-                <div className="relative">
-                  <Clock3 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                  <input
-                    type="time"
+                    type="datetime-local"
                     value={form.registration_until}
                     onChange={(e) =>
                       updateForm("registration_until", e.target.value)
@@ -480,25 +527,32 @@ export default function AdminEventosPage() {
 
               <label className="block">
                 <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-white/50">
-                  QR válido hasta
+                  QR entrada válido hasta
                 </span>
                 <div className="relative">
                   <Clock3 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                   <input
-                    type="time"
+                    type="datetime-local"
                     value={form.qr_entry_until}
-                    onChange={(e) => updateForm("qr_entry_until", e.target.value)}
+                    onChange={(e) =>
+                      updateForm("qr_entry_until", e.target.value)
+                    }
                     className="w-full rounded-2xl border border-white/10 bg-black/40 py-3 pl-11 pr-4 text-white outline-none transition focus:border-fuchsia-400/50"
                   />
                 </div>
               </label>
             </div>
 
+            <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4 text-xs text-white/50">
+              Ejemplo ideal: inicio 24/04 23:00 · lista hasta 25/04 02:30 · QR
+              hasta 25/04 04:00.
+            </div>
+
             <div className="mt-5 flex flex-wrap gap-3">
               <button
                 onClick={handleCreateEvent}
                 disabled={saving}
-                className="inline-flex items-center gap-2 rounded-2xl bg-fuchsia-500 px-5 py-3 text-sm font-black text-white transition hover:bg-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-2xl bg-fuchsia-500 px-5 py-3 text-sm font-black text-white shadow-[0_0_25px_rgba(217,70,239,0.35)] transition hover:bg-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus className="h-4 w-4" />
                 {saving ? "Guardando..." : "Crear evento"}
@@ -653,10 +707,12 @@ export default function AdminEventosPage() {
 
                         <div className="mt-2 flex flex-col gap-1 text-xs text-white/45">
                           <span>
-                            Registros hasta: {formatDateTime(event.registration_until)}
+                            Registros hasta:{" "}
+                            {formatDateTime(event.registration_until)}
                           </span>
                           <span>
-                            QR válido hasta: {formatDateTime(event.qr_entry_until)}
+                            QR válido hasta:{" "}
+                            {formatDateTime(event.qr_entry_until)}
                           </span>
                         </div>
                       </div>
