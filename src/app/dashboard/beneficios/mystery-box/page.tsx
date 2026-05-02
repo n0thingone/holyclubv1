@@ -295,7 +295,7 @@ const credits = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0)
         return;
       }
 
-      setFreeBoxes(Number(data?.free_boxes ?? 0));
+     setFreeBoxes(Number((data as any)?.free_boxes ?? 0));
     }
 
     void loadFreeBoxes();
