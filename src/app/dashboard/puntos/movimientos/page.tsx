@@ -11,6 +11,14 @@ import {
   AlertCircle,
   Gift,
   Lock,
+  Crown,
+  Ticket,
+  Sparkles,
+  ShieldCheck,
+  Trophy,
+  Wine,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useSearchParams } from "next/navigation";
@@ -35,11 +43,37 @@ type Redemption = {
   expires_at: string | null;
   redeemed_at: string | null;
   created_at: string;
+  points_cost: number | null;
+  holy_rewards?: {
+    name: string | null;
+  } | null;
 };
 
 type Reward = {
   id: string;
   name: string;
+};
+
+type EntryQR = {
+  id: string;
+  qr_token: string;
+  registration_status: string | null;
+  entry_points_awarded: boolean | null;
+  created_at: string;
+  first_name: string | null;
+  last_name: string | null;
+  events: {
+    id: string;
+    name: string;
+    event_date: string;
+    qr_entry_until: string | null;
+    registration_until: string | null;
+  } | null;
+  rrpp_profiles: {
+    id: string;
+    display_name: string | null;
+    slug: string | null;
+  } | null;
 };
 
 type FeedItem =
@@ -80,7 +114,7 @@ type FeedItem =
       positive: false;
     };
 
-type ActiveTab = "qr" | "movimientos";
+type ActiveTab = "entradas" | "canjes" | "movimientos";
 
 function getIsGuest() {
   if (typeof window === "undefined") return false;
@@ -94,25 +128,42 @@ export default function MovimientosPage() {
 
   const [movements, setMovements] = useState<Movement[]>([]);
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);
+  const [entryQRs, setEntryQRs] = useState<EntryQR[]>([]);
   const [rewardNames, setRewardNames] = useState<Record<string, string>>({});
   const [selectedQR, setSelectedQR] = useState<Redemption | null>(null);
+  const [selectedEntryQR, setSelectedEntryQR] = useState<EntryQR | null>(null);
   const [now, setNow] = useState(Date.now());
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
-  const [activeTab, setActiveTab] = useState<ActiveTab>("qr");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("entradas");
+  const [vipOpen, setVipOpen] = useState(true);
 
   const userId = (profile as any)?.id;
 
   useEffect(() => {
     setIsGuest(getIsGuest());
+
+    const savedVipOpen = localStorage.getItem("holy_vip_card_open");
+    if (savedVipOpen !== null) {
+      setVipOpen(savedVipOpen === "true");
+    }
   }, []);
+
+  function toggleVipOpen() {
+    const next = !vipOpen;
+    setVipOpen(next);
+    localStorage.setItem("holy_vip_card_open", String(next));
+  }
 
   useEffect(() => {
     const urlTab = searchParams.get("tab");
-    if (urlTab === "movimientos") {
+
+    if (urlTab === "canjes") {
+      setActiveTab("canjes");
+    } else if (urlTab === "movimientos") {
       setActiveTab("movimientos");
     } else {
-      setActiveTab("qr");
+      setActiveTab("entradas");
     }
   }, [searchParams]);
 
@@ -126,6 +177,7 @@ export default function MovimientosPage() {
       setLoading(false);
       setMovements([]);
       setRedemptions([]);
+      setEntryQRs([]);
       return;
     }
 
@@ -146,7 +198,7 @@ export default function MovimientosPage() {
     try {
       setLoading(true);
 
-      const [{ data: movs }, { data: reds }, { data: rewards }] =
+      const [{ data: movs }, { data: reds }, { data: rewards }, { data: entries }] =
         await Promise.all([
           supabase
             .from("holy_points_movements")
@@ -157,18 +209,57 @@ export default function MovimientosPage() {
 
           supabase
             .from("holy_redemptions")
-            .select(
-              "id, reward_id, qr_token, short_token, status, expires_at, redeemed_at, created_at"
-            )
+            .select(`
+              id,
+              reward_id,
+              qr_token,
+              short_token,
+              status,
+              expires_at,
+              redeemed_at,
+              created_at,
+              points_cost,
+              holy_rewards (
+                name
+              )
+            `)
             .eq("user_id", userId)
             .order("created_at", { ascending: false })
-            .limit(30),
+            .limit(100),
 
           supabase.from("holy_rewards").select("id,name"),
+
+          supabase
+            .from("guest_registrations")
+            .select(`
+              id,
+              qr_token,
+              registration_status,
+              entry_points_awarded,
+              created_at,
+              first_name,
+              last_name,
+              events (
+                id,
+                name,
+                event_date,
+                qr_entry_until,
+                registration_until
+              ),
+              rrpp_profiles (
+                id,
+                display_name,
+                slug
+              )
+            `)
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(20),
         ]);
 
       setMovements(movs ?? []);
-      setRedemptions(reds ?? []);
+      setRedemptions(((reds ?? []) as unknown as Redemption[]) ?? []);
+      setEntryQRs(((entries ?? []) as unknown as EntryQR[]) ?? []);
 
       const map: Record<string, string> = {};
       (rewards ?? []).forEach((r: Reward) => {
@@ -183,7 +274,13 @@ export default function MovimientosPage() {
   }
 
   function getRewardLabel(redemption: Redemption) {
-    return rewardNames[redemption.reward_id] ?? "PREMIO";
+    const joinedName = redemption.holy_rewards?.name;
+    const mappedName = rewardNames[redemption.reward_id];
+
+    if (joinedName && joinedName.trim()) return joinedName;
+    if (mappedName && mappedName.trim()) return mappedName;
+
+    return "PREMIO";
   }
 
   function formatDate(date: string | null) {
@@ -213,6 +310,74 @@ export default function MovimientosPage() {
     }
 
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  function formatCountdownText(ms: number) {
+    if (ms <= 0) return "0m";
+
+    const totalMinutes = Math.floor(ms / 60000);
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    const minutes = totalMinutes % 60;
+
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  }
+
+  function getEntryState(entry: EntryQR) {
+    const rawStatus = String(entry.registration_status ?? "").toLowerCase();
+    const entered =
+      entry.entry_points_awarded === true ||
+      ["checked_in", "entered", "used", "scanned", "redeemed"].includes(rawStatus);
+
+    if (entered) {
+      return {
+        key: "entered" as const,
+        label: "INGRESADO",
+        shortLabel: "OK",
+        color: "text-emerald-400",
+        border: "border-emerald-500/20",
+        rail: "from-emerald-400 to-emerald-600",
+        glow: "shadow-[0_0_18px_rgba(16,185,129,0.40)]",
+        icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+        description: "Tu entrada ya fue validada en puerta.",
+      };
+    }
+
+    const until = entry.events?.qr_entry_until
+      ? new Date(entry.events.qr_entry_until).getTime()
+      : null;
+
+    if (until && until <= now) {
+      return {
+        key: "expired" as const,
+        label: "VENCIDO",
+        shortLabel: "VENC.",
+        color: "text-rose-400",
+        border: "border-rose-500/20",
+        rail: "from-rose-400 to-red-600",
+        glow: "shadow-[0_0_18px_rgba(244,63,94,0.40)]",
+        icon: <AlertCircle className="h-3.5 w-3.5" />,
+        description: "Tiempo de ingreso finalizado.",
+      };
+    }
+
+    const left = until ? until - now : null;
+
+    return {
+      key: "pending" as const,
+      label: "PENDIENTE",
+      shortLabel: "QR ACTIVO",
+      color: "text-amber-300",
+      border: "border-amber-500/20",
+      rail: "from-amber-300 to-yellow-500",
+      glow: "shadow-[0_0_18px_rgba(250,204,21,0.38)]",
+      icon: <Clock3 className="h-3.5 w-3.5" />,
+      description: left
+        ? `Tenés tiempo para ingresar: ${formatCountdownText(left)}`
+        : "Entrada pendiente.",
+    };
   }
 
   function getState(r: Redemption) {
@@ -280,6 +445,8 @@ export default function MovimientosPage() {
     return formatCountdown(expires - now);
   }, [selectedQR, now]);
 
+  const selectedEntryState = selectedEntryQR ? getEntryState(selectedEntryQR) : null;
+
   const feedItems = useMemo<FeedItem[]>(() => {
     const movementItems: FeedItem[] = movements.map((mov) => {
       const positive = mov.amount > 0;
@@ -323,8 +490,7 @@ export default function MovimientosPage() {
         });
       } else if (
         r.expires_at &&
-        (r.status === "expired" ||
-          new Date(r.expires_at).getTime() <= now)
+        (r.status === "expired" || new Date(r.expires_at).getTime() <= now)
       ) {
         items.push({
           id: `red-expired-${r.id}`,
@@ -349,7 +515,7 @@ export default function MovimientosPage() {
   }, [movements, redemptions, rewardNames, now]);
 
   return (
-    <DashboardShell title="MOVIMIENTOS">
+    <DashboardShell title="MIS QR">
       <div className="mx-auto max-w-4xl space-y-4 px-4 pb-24 -mt-2">
         {isGuest && (
           <div className="rounded-3xl border border-amber-500/30 bg-amber-500/10 p-6 text-center">
@@ -362,8 +528,7 @@ export default function MovimientosPage() {
             </h2>
 
             <p className="mt-2 text-sm text-amber-200/85">
-              Iniciá sesión para ver tus QR, tus canjes y tu historial de
-              movimientos.
+              Iniciá sesión para ver tus QR, tus canjes y tu historial.
             </p>
           </div>
         )}
@@ -371,41 +536,240 @@ export default function MovimientosPage() {
         {!isGuest && (
           <div className="rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.10),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] p-4 backdrop-blur-xl sm:p-5">
             <div className="mb-4">
-              <h1 className="text-2xl font-black text-white sm:text-3xl">
-                Tus movimientos y premios
+              <div className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-200">
+                <QrCodeIcon className="h-3.5 w-3.5" />
+                Holy Wallet
+              </div>
+
+              <h1 className="mt-3 text-2xl font-black text-white sm:text-3xl">
+                Mis QR
               </h1>
+
               <p className="mt-2 text-sm text-white/60">
-                Acá ves tus QR activos, tus canjes y toda tu actividad.
+                Entradas, VIP, canjes y movimientos de tu cuenta.
               </p>
             </div>
 
-            <div className="mb-4 flex flex-wrap gap-2">
+            <div className="mb-4 grid grid-cols-3 gap-2">
               <button
-                onClick={() => setActiveTab("qr")}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black transition ${
-                  activeTab === "qr"
-                    ? "bg-fuchsia-500/15 text-fuchsia-200 shadow-[0_0_24px_rgba(217,70,239,0.16)]"
-                    : "bg-white/5 text-white/55 hover:bg-white/10 hover:text-white"
+                onClick={() => setActiveTab("entradas")}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-[11px] font-black transition sm:text-sm ${
+                  activeTab === "entradas"
+                    ? "border border-fuchsia-400/25 bg-fuchsia-500/15 text-fuchsia-100 shadow-[0_0_24px_rgba(217,70,239,0.16)]"
+                    : "border border-white/10 bg-white/5 text-white/55 hover:bg-white/10 hover:text-white"
                 }`}
               >
-                <QrCodeIcon className="h-4 w-4" />
-                MIS QR
+                <Ticket className="h-4 w-4" />
+                ENTRADAS
+              </button>
+
+              <button
+                onClick={() => setActiveTab("canjes")}
+                className={`inline-flex items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-[11px] font-black transition sm:text-sm ${
+                  activeTab === "canjes"
+                    ? "border border-fuchsia-400/25 bg-fuchsia-500/15 text-fuchsia-100 shadow-[0_0_24px_rgba(217,70,239,0.16)]"
+                    : "border border-white/10 bg-white/5 text-white/55 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <Wine className="h-4 w-4" />
+                CANJES
               </button>
 
               <button
                 onClick={() => setActiveTab("movimientos")}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black transition ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-2xl px-2 py-2.5 text-[11px] font-black transition sm:text-sm ${
                   activeTab === "movimientos"
-                    ? "bg-fuchsia-500/15 text-fuchsia-200 shadow-[0_0_24px_rgba(217,70,239,0.16)]"
-                    : "bg-white/5 text-white/55 hover:bg-white/10 hover:text-white"
+                    ? "border border-fuchsia-400/25 bg-fuchsia-500/15 text-fuchsia-100 shadow-[0_0_24px_rgba(217,70,239,0.16)]"
+                    : "border border-white/10 bg-white/5 text-white/55 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 <History className="h-4 w-4" />
-                MIS ULT MOV
+                MOV.
               </button>
             </div>
 
-            {activeTab === "qr" ? (
+            {activeTab === "entradas" ? (
+              <div className="space-y-3">
+                <div className="relative overflow-hidden rounded-[24px] border border-amber-400/25 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(217,70,239,0.12),transparent_36%),linear-gradient(180deg,rgba(22,14,5,0.96),rgba(5,5,8,0.98))] p-3 shadow-[0_0_28px_rgba(251,191,36,0.06)]">
+                  <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-amber-400/12 blur-3xl" />
+
+                  <button
+                    type="button"
+                    onClick={toggleVipOpen}
+                    className="relative z-10 flex w-full items-center justify-between gap-3 text-left"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-amber-400/25 bg-amber-500/10">
+                        <Crown className="h-5 w-5 text-amber-200" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h2 className="truncate text-lg font-black leading-none text-amber-200">
+                            CLIENTE VIP
+                          </h2>
+
+                          <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-amber-200">
+                            Bloqueado
+                          </span>
+                        </div>
+
+                        <p className="mt-1 truncate text-xs font-semibold text-white/65">
+                          Sin fila • Sin pagar entrada
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 text-white/65">
+                      {vipOpen ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </button>
+
+                  {vipOpen && (
+                    <div className="relative z-10 mt-3 rounded-[20px] border border-white/10 bg-black/25 p-3">
+                      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-amber-300">
+                        <Lock className="h-3.5 w-3.5" />
+                        ¿Cómo lo consigo?
+                      </div>
+
+                      <p className="mt-2 text-xs leading-relaxed text-white/60">
+                        Más adelante se desbloquea por logros, ingresos y
+                        actividad real en HOLY. Cuando seas VIP, acá vas a ver
+                        tu QR dorado sin vencimiento.
+                      </p>
+
+                      <div className="mt-3 grid gap-2">
+                        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                          <ShieldCheck className="h-4 w-4 text-emerald-300" />
+                          <span className="text-xs font-semibold text-white/75">
+                            Vení seguido a HOLY
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                          <Sparkles className="h-4 w-4 text-fuchsia-300" />
+                          <span className="text-xs font-semibold text-white/75">
+                            Sumá ingresos y participación
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                          <Trophy className="h-4 w-4 text-amber-300" />
+                          <span className="text-xs font-semibold text-white/75">
+                            Próximamente: logros y rangos
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {loading && entryQRs.length === 0 ? (
+                    <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-5 text-center text-sm text-white/50">
+                      Cargando entradas QR...
+                    </div>
+                  ) : entryQRs.length === 0 ? (
+                    <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-5 text-center">
+                      <Ticket className="mx-auto h-8 w-8 text-white/30" />
+                      <h3 className="mt-3 text-sm font-black text-white">
+                        MIS ENTRADAS QR
+                      </h3>
+                      <p className="mt-2 text-xs text-white/45">
+                        Cuando te anotes en una lista free, tu QR de entrada va
+                        a aparecer acá.
+                      </p>
+                    </div>
+                  ) : (
+                    entryQRs.map((entry) => {
+                      const state = getEntryState(entry);
+                      const isActiveEntry = state.key === "pending";
+                      const eventName = entry.events?.name ?? "EVENTO HOLY";
+                      const rrppName =
+                        entry.rrpp_profiles?.display_name ?? "RRPP HOLY";
+
+                      return (
+                        <div
+                          key={entry.id}
+                          className={`relative overflow-hidden rounded-[26px] border bg-[linear-gradient(180deg,rgba(3,3,7,0.88),rgba(8,8,12,0.96))] p-4 ${state.border}`}
+                        >
+                          <div className="pointer-events-none absolute inset-y-4 right-4 flex w-[58px] flex-col items-center">
+                            <div
+                              className={`text-center text-[13px] font-black uppercase tracking-[0.16em] ${state.color} ${
+                                isActiveEntry
+                                  ? "animate-[pulse_2s_ease-in-out_infinite]"
+                                  : ""
+                              }`}
+                            >
+                              {state.shortLabel}
+                            </div>
+
+                            <div
+                              className={`mt-2 w-[4px] flex-1 rounded-full bg-gradient-to-b ${state.rail} ${state.glow} ${
+                                isActiveEntry
+                                  ? "animate-[pulse_2s_ease-in-out_infinite]"
+                                  : ""
+                              }`}
+                            />
+                          </div>
+
+                          <div className="pr-16">
+                            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-amber-400/15 bg-amber-500/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-amber-200">
+                              <Ticket className="h-3 w-3" />
+                              Lista Free
+                            </div>
+
+                            <h3 className="text-[18px] font-black uppercase leading-tight text-white">
+                              {eventName}
+                            </h3>
+
+                            <p className="mt-1 text-xs text-white/45">
+                              Lista de {rrppName}
+                            </p>
+
+                            <div
+                              className={`mt-3 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.04em] ${state.color}`}
+                            >
+                              {state.icon}
+                              {state.label}
+                            </div>
+
+                            <p className={`mt-2 text-xs font-semibold ${state.color}`}>
+                              {state.description}
+                            </p>
+
+                            <p className="mt-3 text-[11px] text-white/45">
+                              Generado: {formatDate(entry.created_at)}
+                            </p>
+
+                            {entry.events?.event_date && (
+                              <p className="mt-1 text-[11px] text-white/45">
+                                Evento: {formatDate(entry.events.event_date)}
+                              </p>
+                            )}
+
+                            {isActiveEntry && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedEntryQR(entry)}
+                                className="relative mt-4 overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#facc15,#f59e0b)] px-4 py-2.5 text-xs font-black text-black shadow-[0_0_26px_rgba(250,204,21,0.28)] transition active:scale-[0.98]"
+                              >
+                                <span className="absolute inset-0 bg-gradient-to-r from-yellow-300/20 via-white/25 to-yellow-300/20 animate-[pulse_2.4s_ease-in-out_infinite]" />
+                                <span className="relative z-10">VER QR</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            ) : activeTab === "canjes" ? (
               <div className="space-y-3">
                 {loading && redemptions.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center text-sm text-white/50">
@@ -413,7 +777,7 @@ export default function MovimientosPage() {
                   </div>
                 ) : redemptions.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center text-sm text-white/50">
-                    Todavía no tenés premios o QR generados.
+                    Todavía no tenés canjes QR generados.
                   </div>
                 ) : (
                   redemptions.map((r) => {
@@ -444,6 +808,11 @@ export default function MovimientosPage() {
                         <div className="pr-16 sm:pr-[72px]">
                           <div className="flex items-start justify-between gap-4">
                             <div className="min-w-0">
+                              <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-white/50">
+                                <Wine className="h-3 w-3" />
+                                Canje QR
+                              </div>
+
                               <div className="text-[18px] font-black uppercase leading-tight text-white sm:text-[20px]">
                                 {getRewardLabel(r)}
                               </div>
@@ -568,6 +937,47 @@ export default function MovimientosPage() {
           </div>
         )}
       </div>
+
+      {!isGuest && selectedEntryQR && selectedEntryState && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[30px] border border-amber-500/20 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.16),transparent_30%),linear-gradient(180deg,#09090f,#050507)] p-6 text-center shadow-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-200">
+              <Ticket className="h-3.5 w-3.5" />
+              Lista Free
+            </div>
+
+            <h2 className="mt-3 text-xl font-black text-white">
+              {selectedEntryQR.events?.name ?? "EVENTO HOLY"}
+            </h2>
+
+            <div
+              className={`mt-2 flex items-center justify-center gap-1.5 text-sm font-black uppercase ${selectedEntryState.color}`}
+            >
+              {selectedEntryState.icon}
+              {selectedEntryState.label}
+            </div>
+
+            <div className="mt-5 inline-flex rounded-[24px] bg-white p-4">
+              <QRCode value={selectedEntryQR.qr_token} size={220} />
+            </div>
+
+            <div className={`mt-4 text-sm font-semibold ${selectedEntryState.color}`}>
+              {selectedEntryState.description}
+            </div>
+
+            <div className="mt-2 text-xs text-white/45">
+              Mostralo en puerta para ingresar
+            </div>
+
+            <button
+              onClick={() => setSelectedEntryQR(null)}
+              className="mt-5 w-full rounded-2xl bg-amber-500 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-400"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       {!isGuest && selectedQR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">

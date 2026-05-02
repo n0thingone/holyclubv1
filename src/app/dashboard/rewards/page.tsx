@@ -48,9 +48,11 @@ export default function RewardsPage() {
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase
-      .from("holy_rewards")
-      .select("*")
+  const { data, error } = await supabase
+  .from("holy_rewards")
+  .select("*")
+  .eq("active", true)
+  .gt("points_cost", 0)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false });
 

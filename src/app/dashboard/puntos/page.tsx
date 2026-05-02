@@ -259,6 +259,7 @@ export default function Page() {
           .from("holy_rewards")
           .select("id,name,description,points_cost")
           .eq("active", true)
+           .gt("points_cost", 0)
           .order("points_cost", { ascending: true }),
         supabase
           .from("events")

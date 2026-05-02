@@ -16,6 +16,9 @@ import {
   UtensilsCrossed,
   Crown,
   Zap,
+  Ticket,
+  Shuffle,
+  UserPlus,
 } from "lucide-react";
 
 import DashboardShell from "@/components/navigation/DashboardShell";
@@ -35,9 +38,35 @@ type EventRow = {
   status?: string | null;
 };
 
+type RRPPRow = {
+  slug: string;
+  profiles: {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+  } | null;
+};
+
 function getIsGuest() {
   if (typeof window === "undefined") return false;
   return localStorage.getItem("holy_guest") === "true";
+}
+
+function shuffleArray<T>(arr: T[]) {
+  return [...arr].sort(() => Math.random() - 0.5);
+}
+
+function getRRPPName(rrpp: RRPPRow) {
+  return rrpp.profiles?.full_name || rrpp.profiles?.email || "RRPP";
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 function getRewardTier(points: number) {
@@ -131,6 +160,174 @@ function getNextGoal(balance: number) {
   return next ?? null;
 }
 
+function getRankByLevel(level: number) {
+  switch (level) {
+    case 1:
+      return "Visitante";
+    case 2:
+      return "Habitual";
+    case 3:
+      return "Fiel HOLY";
+    case 4:
+      return "Nocturno";
+    case 5:
+      return "Elite HOLY";
+    case 6:
+      return "Leyenda HOLY";
+    case 7:
+      return "Mítico";
+    case 8:
+      return "Inmortal HOLY";
+    default:
+      return "Visitante";
+  }
+}
+
+function getFrameByLevel(level: number) {
+  if (level >= 8) {
+    return "border-amber-300/60 bg-amber-400/15 shadow-[0_0_34px_rgba(251,191,36,0.30)]";
+  }
+
+  if (level >= 7) {
+    return "border-amber-300/45 bg-amber-400/12 shadow-[0_0_28px_rgba(251,191,36,0.22)]";
+  }
+
+  if (level >= 5) {
+    return "border-fuchsia-300/45 bg-fuchsia-500/12 shadow-[0_0_26px_rgba(217,70,239,0.20)]";
+  }
+
+  if (level >= 4) {
+    return "border-violet-300/35 bg-violet-500/10 shadow-[0_0_22px_rgba(139,92,246,0.16)]";
+  }
+
+  if (level >= 3) {
+    return "border-cyan-300/35 bg-cyan-500/10 shadow-[0_0_20px_rgba(34,211,238,0.12)]";
+  }
+
+  if (level >= 2) {
+    return "border-white/20 bg-white/8 shadow-[0_0_18px_rgba(255,255,255,0.08)]";
+  }
+
+  return "border-white/10 bg-white/5";
+}
+
+function HolyProgressHUD() {
+  const supabase = useMemo(() => getSupabaseClient(), []);
+  const { profile } = useAuth();
+
+  const [progress, setProgress] = useState<{
+    xp: number;
+    level: number;
+    free_boxes: number;
+  } | null>(null);
+
+  useEffect(() => {
+    async function loadProgress() {
+      if (!profile?.id) return;
+
+      const { data, error } = await supabase
+        .from("holy_user_progress")
+        .select("xp, level, free_boxes")
+        .eq("user_id", profile.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error cargando progreso HOLY:", error);
+        return;
+      }
+
+      if (data) {
+        setProgress({
+          xp: Number(data.xp ?? 0),
+          level: Number(data.level ?? 1),
+          free_boxes: Number(data.free_boxes ?? 0),
+        });
+      } else {
+        setProgress({ xp: 0, level: 1, free_boxes: 0 });
+      }
+    }
+
+    void loadProgress();
+  }, [profile?.id, supabase]);
+
+  if (!progress) return null;
+
+  const levelThresholds = [0, 200, 500, 900, 1400, 2000, 2700, 3500];
+  const level = Math.max(1, Math.min(8, progress.level || 1));
+  const xp = progress.xp || 0;
+  const currentLevelMin = levelThresholds[level - 1] ?? 0;
+  const nextLevelMin = levelThresholds[level] ?? currentLevelMin;
+  const isMaxLevel = level >= 8;
+  const progressInLevel = isMaxLevel ? nextLevelMin - currentLevelMin : xp - currentLevelMin;
+  const needed = Math.max(1, nextLevelMin - currentLevelMin);
+  const percent = isMaxLevel
+    ? 100
+    : Math.max(0, Math.min(100, (progressInLevel / needed) * 100));
+  const xpLeft = isMaxLevel ? 0 : Math.max(0, nextLevelMin - xp);
+  const rank = getRankByLevel(level);
+  const frameClass = getFrameByLevel(level);
+
+  return (
+    <div className="relative overflow-hidden rounded-[24px] border border-fuchsia-400/20 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.20),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.028))] p-2.5 shadow-[0_0_28px_rgba(217,70,239,0.10)]">
+      <div className="pointer-events-none absolute -left-10 top-0 h-24 w-24 rounded-full bg-fuchsia-500/16 blur-3xl" />
+      <div className="pointer-events-none absolute -right-10 bottom-0 h-24 w-24 rounded-full bg-cyan-400/10 blur-3xl" />
+
+      <div className="relative z-10 flex items-center gap-3">
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border ${frameClass}`}>
+          <Crown className={level >= 6 ? "h-5 w-5 text-amber-200" : "h-5 w-5 text-fuchsia-200"} />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.22em] text-fuchsia-300">
+                Progreso HOLY
+              </p>
+              <div className="mt-0.5 flex items-center gap-2">
+                <p className="text-sm font-black leading-none text-white">
+                  Nivel {level}
+                </p>
+                <span className="rounded-full border border-white/10 bg-white/8 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-white/75">
+                  {rank}
+                </span>
+              </div>
+            </div>
+
+            {progress.free_boxes > 0 ? (
+              <Link
+                href="/dashboard/beneficios/mystery-box"
+                className="holy-shimmer relative shrink-0 overflow-hidden rounded-full border border-amber-300/50 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.32),transparent_45%),linear-gradient(90deg,rgba(251,191,36,0.20),rgba(217,70,239,0.14))] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100 shadow-[0_0_20px_rgba(251,191,36,0.24)] transition active:scale-[0.96]"
+              >
+                <span className="relative z-10 inline-flex items-center gap-1.5">
+                  <Gift className="h-3.5 w-3.5 text-amber-200" />
+                  <span>{progress.free_boxes}</span>
+                  <span>HOLY BOX</span>
+                </span>
+              </Link>
+            ) : null}
+          </div>
+
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-violet-400 to-cyan-400 shadow-[0_0_16px_rgba(217,70,239,0.45)] transition-all duration-700"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <p className="text-[10px] font-semibold text-white/55">
+              {isMaxLevel ? "Rango máximo desbloqueado" : `Faltan ${xpLeft} XP para Nivel ${level + 1}`}
+            </p>
+            <p className="shrink-0 text-[10px] font-black text-white/70">
+              {isMaxLevel ? `${xp} XP` : `${xp}/${nextLevelMin} XP`}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PuntosHomePage() {
   const supabase = useMemo(() => getSupabaseClient(), []);
   const { profile } = useAuth();
@@ -139,6 +336,8 @@ export default function PuntosHomePage() {
   const [activeEvent, setActiveEvent] = useState<EventRow | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const [rrpps, setRrpps] = useState<RRPPRow[]>([]);
+  const [randomRRPP, setRandomRRPP] = useState<RRPPRow | null>(null);
   const [activeRewardIndex, setActiveRewardIndex] = useState(0);
   const [isUserInteracting, setIsUserInteracting] = useState(false);
 
@@ -160,14 +359,38 @@ export default function PuntosHomePage() {
 
   useEffect(() => {
     async function loadHomeData() {
+      setLoading(true);
+
+      const { data: rrppData, error: rrppError } = await supabase
+        .from("rrpp_profiles")
+        .select(`
+          slug,
+          profiles (
+            id,
+            full_name,
+            email
+          )
+        `)
+        .not("slug", "is", null);
+
+      if (rrppError) {
+        console.error("Error cargando RRPP:", rrppError);
+      }
+
+      const cleanRRPP = ((rrppData ?? []) as unknown as RRPPRow[]).filter(
+        (rrpp) => Boolean(rrpp.slug)
+      );
+
+      const shuffledRRPP = shuffleArray(cleanRRPP);
+      setRrpps(shuffledRRPP);
+      setRandomRRPP(shuffledRRPP[0] ?? null);
+
       if (isGuest) {
         setLoading(false);
         setRewards([]);
         setActiveEvent(null);
         return;
       }
-
-      setLoading(true);
 
       const [{ data: eventData }, { data: rewardsData, error: rewardsError }] =
         await Promise.all([
@@ -308,16 +531,80 @@ export default function PuntosHomePage() {
           }
         }
 
+        @keyframes holyListaGlow {
+          0% {
+            box-shadow: 0 0 18px rgba(217, 70, 239, 0.1);
+          }
+
+          50% {
+            box-shadow:
+              0 0 36px rgba(217, 70, 239, 0.26),
+              0 0 16px rgba(251, 191, 36, 0.12);
+          }
+
+          100% {
+            box-shadow: 0 0 18px rgba(217, 70, 239, 0.1);
+          }
+        }
+
+        @keyframes holyShimmer {
+          0% {
+            transform: translateX(-130%) rotate(12deg);
+          }
+          100% {
+            transform: translateX(180%) rotate(12deg);
+          }
+        }
+
+        @keyframes holySectionFade {
+          0% {
+            opacity: 0.45;
+          }
+
+          50% {
+            opacity: 1;
+          }
+
+          100% {
+            opacity: 0.45;
+          }
+        }
+
         .holy-event-pulse {
           animation: holyEventPulse 2.6s ease-in-out infinite;
           transform-origin: center;
         }
+
+        .holy-lista-glow {
+          animation: holyListaGlow 2.9s ease-in-out infinite;
+        }
+
+        .holy-section-divider {
+          animation: holySectionFade 3s ease-in-out infinite;
+        }
+
+        .holy-shimmer::after {
+          content: "";
+          position: absolute;
+          top: -35%;
+          left: 0;
+          width: 42%;
+          height: 170%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.22),
+            transparent
+          );
+          animation: holyShimmer 3.2s ease-in-out infinite;
+          pointer-events: none;
+        }
       `}</style>
 
-      <div className="px-3 pb-24 pt-3 text-white">
-        <div className="space-y-3">
+      <div className="px-3 pb-24 pt-2 text-white">
+        <div className="space-y-4">
           {isGuest && (
-            <div className="rounded-[24px] border border-amber-500/25 bg-amber-500/10 p-4">
+            <div className="rounded-[22px] border border-amber-500/25 bg-amber-500/10 p-3">
               <div className="flex gap-3">
                 <Lock className="mt-1 text-amber-300" />
                 <div>
@@ -333,11 +620,113 @@ export default function PuntosHomePage() {
             </div>
           )}
 
-          <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-3">
+          {!isGuest && <HolyProgressHUD />}
+
+          <div className="holy-lista-glow relative overflow-hidden rounded-[24px] border border-fuchsia-400/20 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.14),transparent_25%),radial-gradient(circle_at_top_right,rgba(217,70,239,0.24),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-2.5">
+            <div className="pointer-events-none absolute -left-10 top-0 h-24 w-24 rounded-full bg-amber-400/14 blur-3xl" />
+            <div className="pointer-events-none absolute -right-8 bottom-0 h-24 w-24 rounded-full bg-fuchsia-500/20 blur-3xl" />
+
+            <div className="relative z-10">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">
+                    <Ticket size={11} />
+                    Acceso rápido
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-black leading-none text-white">
+                      LISTA FREE
+                    </h2>
+
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      </span>
+                      {loading ? "..." : activeEvent?.name || "SIN EVENTO"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border border-fuchsia-400/20 bg-fuchsia-500/10">
+                  <UserPlus className="h-5 w-5 text-fuchsia-200" />
+                </div>
+              </div>
+
+              {randomRRPP ? (
+                <Link href={`/lista/${randomRRPP.slug}`} className="block">
+                  <div className="holy-shimmer relative mb-2 overflow-hidden rounded-[18px] border border-amber-300/30 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 px-3 py-2.5 text-black shadow-[0_0_22px_rgba(251,191,36,0.16)] active:scale-[0.99]">
+                    <div className="relative z-10 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-black/55">
+                          Entrar rápido
+                        </p>
+                        <p className="text-sm font-black leading-tight">
+                          ELEGIR POR MÍ
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 rounded-full bg-black/12 px-2.5 py-1">
+                        <Shuffle className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-black">RANDOM</span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ) : (
+                <div className="mb-2 rounded-[18px] border border-white/10 bg-black/20 px-3 py-2 text-center">
+                  <p className="text-xs font-bold text-white/70">
+                    Todavía no hay RRPP activos con link.
+                  </p>
+                </div>
+              )}
+
+              {rrpps.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  {rrpps.slice(0, 8).map((rrpp) => {
+                    const name = getRRPPName(rrpp);
+                    const initials = getInitials(name);
+
+                    return (
+                      <Link
+                        key={rrpp.slug}
+                        href={`/lista/${rrpp.slug}`}
+                        className="min-w-[98px] rounded-[18px] border border-white/10 bg-black/22 p-2 text-center transition active:scale-[0.97]"
+                      >
+                        <div className="mx-auto mb-1.5 flex h-8 w-8 items-center justify-center rounded-[13px] border border-fuchsia-400/20 bg-fuchsia-500/10 text-xs font-black text-fuchsia-100">
+                          {initials}
+                        </div>
+
+                        <p className="truncate text-[11px] font-black text-white">
+                          {name}
+                        </p>
+
+                        <p className="mt-0.5 text-[8px] font-black uppercase tracking-[0.13em] text-emerald-300/80">
+                          Lista abierta
+                        </p>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="holy-section-divider my-1 flex items-center gap-3 px-2">
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-fuchsia-300/25 to-transparent" />
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[9px] font-black uppercase tracking-[0.22em] text-white/45">
+              <Sparkles className="h-3 w-3 text-fuchsia-300" />
+              Canjes y beneficios
+            </div>
+            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-fuchsia-300/25 to-transparent" />
+          </div>
+
+          <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-2">
             <div className="pointer-events-none absolute left-1/2 top-0 h-24 w-40 -translate-x-1/2 rounded-full bg-fuchsia-500/15 blur-3xl" />
 
             <div className="relative z-10">
-              <div className="mb-2 flex items-start justify-between gap-2">
+              <div className="mb-1 flex items-start justify-between gap-2">
                 <div>
                   <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-200">
                     <Zap size={12} />
@@ -347,10 +736,6 @@ export default function PuntosHomePage() {
                   <h3 className="text-lg font-black leading-none text-white">
                     {activeReward?.name ?? "Canjes HOLY"}
                   </h3>
-
-                  <p className="mt-1 text-xs text-white/45">
-                    Canjeá desde 5.000 créditos
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -371,39 +756,6 @@ export default function PuntosHomePage() {
                   </button>
                 </div>
               </div>
-
-              {!isGuest && (
-                <div className="mb-2 rounded-[18px] border border-white/10 bg-black/20 p-2.5">
-                  {nextGoal ? (
-                    <>
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-semibold leading-tight text-white/80">
-                          Te faltan{" "}
-                          <span className="text-fuchsia-300">
-                            {(nextGoal - realBalance).toLocaleString("es-AR")}
-                          </span>{" "}
-                          créditos
-                        </p>
-
-                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-white/40">
-                          {nextGoal.toLocaleString("es-AR")}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-violet-400 to-cyan-400 transition-all duration-500"
-                          style={{ width: `${progressToGoal}%` }}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-xs font-semibold text-amber-200">
-                      Ya estás en rango alto. Es momento de romperla en canjes.
-                    </p>
-                  )}
-                </div>
-              )}
 
               {rewards.length === 0 ? (
                 <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-5 text-center text-sm text-white/50">
@@ -427,7 +779,7 @@ export default function PuntosHomePage() {
                       return (
                         <div
                           key={reward.id}
-                          className="min-w-0 shrink-0 basis-[62%] snap-center"
+                          className="min-w-0 shrink-0 basis-[55%] snap-center"
                         >
                           <div
                             className={`relative overflow-hidden rounded-[22px] border p-3 transition duration-300 ${tier.wrap} ${
@@ -443,7 +795,7 @@ export default function PuntosHomePage() {
                               className={`pointer-events-none absolute bottom-0 right-0 h-16 w-16 rounded-full blur-3xl ${tier.glow}`}
                             />
 
-                            <div className="relative z-10 flex h-[230px] flex-col">
+                            <div className="relative z-10 flex h-[170px] flex-col">
                               <div className="flex items-center justify-between gap-2">
                                 <span
                                   className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.2em] ${tier.badge}`}
@@ -510,80 +862,14 @@ export default function PuntosHomePage() {
                     ))}
                   </div>
 
-                  <Link href="/dashboard/puntos" className="mt-3 block">
-                    <div className="rounded-[20px] border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-3 text-center text-sm font-bold text-fuchsia-200 transition active:scale-[0.99]">
+               <Link href="/dashboard/puntos/home" className="mt-3 block">
+                    <div className="rounded-[20px] border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-2 text-center text-sm font-bold text-fuchsia-200 transition active:scale-[0.99]">
                       Ver todos los beneficios
                     </div>
                   </Link>
                 </>
               )}
             </div>
-          </div>
-
-          <div className="holy-event-pulse rounded-[22px] border border-fuchsia-500/20 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.16),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.035))] px-4 py-3">
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-fuchsia-300">
-              <Sparkles size={13} />
-              Hoy en HOLY
-            </div>
-
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="truncate text-lg font-black leading-tight">
-                  {loading ? "Cargando..." : activeEvent?.name || "SIN EVENTO"}
-                </h2>
-                <p className="mt-0.5 text-xs text-white/50">
-                  {isGuest
-                    ? "Entrá para usar beneficios"
-                    : "Lista activa y rewards disponibles."}
-                </p>
-              </div>
-
-              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                </span>
-                Activo
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <a
-              href="https://instagram.com/holyclub.gr"
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-[22px] border border-white/10 bg-white/5 p-3 active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10">
-                  <Instagram size={18} className="text-fuchsia-400" />
-                </div>
-
-                <div className="min-w-0">
-                  <p className="text-sm font-bold">SEGUINOS</p>
-                  <p className="truncate text-xs text-white/50">@holy.club</p>
-                </div>
-              </div>
-            </a>
-
-            <a
-              href="https://wa.me/5492984229239"
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-[22px] border border-white/10 bg-white/5 p-3 active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10">
-                  <MessageCircle size={18} className="text-emerald-300" />
-                </div>
-
-                <div className="min-w-0">
-                  <p className="text-sm font-bold">WHATSAPP</p>
-                  <p className="truncate text-xs text-white/50">2984 22-9239</p>
-                </div>
-              </div>
-            </a>
           </div>
         </div>
       </div>

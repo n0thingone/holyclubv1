@@ -1,5 +1,5 @@
 "use client";
-
+import LevelUpModal from "@/components/progress/LevelUpModal";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -38,46 +38,63 @@ const BOX_COST = 3000;
 
 const rewards: BoxReward[] = [
   {
+    id: "nothing",
+    name: "NADA 😅",
+    rarity: "common",
+    chance: 45,
+    type: "reward",
+    description: "No salió premio… pero la próxima puede ser épica.",
+  },
+  {
     id: "500_credits",
     name: "500 CRÉDITOS",
     rarity: "common",
-    chance: 40,
+    chance: 25,
     type: "credits",
     value: 500,
     description: "Volvés a sumar una parte para seguir jugando.",
   },
   {
+  id: "10000_credits",
+  name: "10.000 CRÉDITOS",
+  rarity: "legendary",
+  chance: 1,
+  type: "credits",
+  description: "Jackpot. Te llenaste."
+},
+  {
     id: "1000_credits",
     name: "1000 CRÉDITOS",
     rarity: "rare",
-    chance: 25,
+    chance: 15,
     type: "credits",
     value: 1000,
     description: "Buen drop. Te sirve para otro canje o seguir probando.",
   },
   {
-    id: "shot",
-    name: "SHOT GRATIS",
+    id: "2500_credits",
+    name: "2500 CRÉDITOS",
+    rarity: "epic",
+    chance: 8,
+    type: "credits",
+    value: 2500,
+    description: "Buen premio. Recuperás bastante de la caja.",
+  },
+  {
+    id: "free_box",
+    name: "HOLY BOX GRATIS",
     rarity: "rare",
-    chance: 15,
+    chance: 4,
     type: "reward",
-    description: "Canjeable en barra en este evento.",
+    description: "Ganaste otra HOLY BOX para abrir gratis.",
   },
   {
     id: "pinta",
     name: "PINTA 500CC",
     rarity: "epic",
-    chance: 10,
+    chance: 2,
     type: "reward",
     description: "Una pinta bien fría para canjear en barra.",
-  },
-  {
-    id: "vaso_litro",
-    name: "VASO DE LITRO",
-    rarity: "epic",
-    chance: 7,
-    type: "reward",
-    description: "Vaso plástico de litro estilo boliche.",
   },
   {
     id: "chandon",
@@ -88,14 +105,21 @@ const rewards: BoxReward[] = [
     description: "Premio top. Canjeable en barra.",
   },
   {
-    id: "10000_credits",
-    name: "10.000 CRÉDITOS",
-    rarity: "legendary",
-    chance: 2,
-    type: "credits",
-    value: 10000,
-    description: "Jackpot de créditos HOLY.",
-  },
+  id: "shot",
+  name: "SHOT GRATIS",
+  rarity: "rare",
+  chance: 12,
+  type: "reward",
+  description: "Canjeable en barra en este evento.",
+},
+{
+  id: "vaso_litro",
+  name: "VASO DE LITRO",
+  rarity: "epic",
+  chance: 5,
+  type: "reward",
+  description: "Canjeable en barra.",
+},
 ];
 
 function isGuestUser() {
@@ -212,6 +236,8 @@ export default function MysteryBoxPage() {
   const [showJackpot, setShowJackpot] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isGuest, setIsGuest] = useState(false);
+  const [levelUpData, setLevelUpData] = useState<any>(null);
+  const [freeBoxes, setFreeBoxes] = useState(0);
   const prizesScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -247,8 +273,33 @@ export default function MysteryBoxPage() {
   }, []);
 
   const userId = (profile as any)?.id ?? null;
- const credits = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0);
-  const canOpen = !isGuest && credits >= BOX_COST && !isOpening && !loading;
+const credits = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0);
+  const hasFreeBox = freeBoxes > 0;
+  const canOpen = !isGuest && (hasFreeBox || credits >= BOX_COST) && !isOpening && !loading;
+
+  useEffect(() => {
+    async function loadFreeBoxes() {
+      if (!userId || isGuest) {
+        setFreeBoxes(0);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("holy_user_progress")
+        .select("free_boxes")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error cargando Mystery Box gratis:", error);
+        return;
+      }
+
+      setFreeBoxes(Number(data?.free_boxes ?? 0));
+    }
+
+    void loadFreeBoxes();
+  }, [userId, isGuest, supabase]);
 
   const rarityCount = useMemo(() => {
     return {
@@ -279,9 +330,12 @@ export default function MysteryBoxPage() {
       await new Promise((resolve) => setTimeout(resolve, 250));
       setShowFlash(false);
 
-    const { data, error } = await (supabase as any).rpc("open_holy_mystery_box", {
-  p_user_id: userId,
-});
+      const useFreeBox = hasFreeBox;
+
+      const { data, error } = await (supabase as any).rpc("open_holy_mystery_box", {
+        p_user_id: userId,
+        p_use_free_box: useFreeBox,
+      });
 
       if (error) throw error;
 
@@ -300,15 +354,39 @@ export default function MysteryBoxPage() {
       setOpenedReward(rewardMeta);
       setHistory((prev) => [rewardMeta, ...prev].slice(0, 6));
 
-      await refreshProfile();
-
-      if (typeof result.balance === "number") {
-        window.dispatchEvent(
-          new CustomEvent("holy-credits-updated", {
-            detail: result.balance,
-          })
-        );
+      if (useFreeBox) {
+        setFreeBoxes((prev) => Math.max(0, prev - 1));
       }
+
+// 🧠 XP por abrir Mystery Box
+const { data: xpData, error: xpError } = await supabase.rpc("add_holy_xp", {
+  p_user_id: userId,
+  p_amount: 30,
+  p_reason: "mystery_box",
+});
+
+if (xpError) {
+  console.error("No se pudo sumar XP por Mystery Box:", xpError);
+}
+
+if (xpData?.level_up) {
+  setLevelUpData(xpData);
+}
+
+      const { data: refreshedProgress } = await supabase
+        .from("holy_user_progress")
+        .select("free_boxes")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (refreshedProgress) {
+        setFreeBoxes(Number(refreshedProgress.free_boxes ?? 0));
+      }
+
+      // No pisamos el saldo con result.balance para evitar valores viejos.
+      // La función SQL ya sincroniza profiles.holy_points_balance.
+      // refreshProfile() recarga el saldo desde la fuente actual del AuthContext.
+      await refreshProfile();
 
       if (rewardMeta.id === "10000_credits") {
         setShowJackpot(true);
@@ -324,6 +402,14 @@ export default function MysteryBoxPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-3 px-3 pb-24 pt-1 text-white md:space-y-6 md:px-4 md:pt-2">
+    <LevelUpModal
+  open={Boolean(levelUpData)}
+  level={levelUpData?.new_level ?? 1}
+  rank={levelUpData?.rank ?? "Visitante"}
+  freeBoxesAdded={levelUpData?.free_boxes_added ?? 0}
+  creditsAdded={levelUpData?.credits_added ?? 0}
+  onClose={() => setLevelUpData(null)}
+/>
       <AnimatePresence>
         {showJackpot ? (
           <motion.div
@@ -470,6 +556,14 @@ export default function MysteryBoxPage() {
               <p className="mt-1 text-xs text-white/55 sm:mt-2 sm:text-sm">
                 Abrila y descubrí qué te tocó esta noche.
               </p>
+
+              {!isGuest ? (
+                <div className="mx-auto mt-2 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-500/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-amber-200">
+                  🎰 Gratis: {freeBoxes}
+                  <span className="text-white/35">·</span>
+                  <span className="text-fuchsia-200">Comprar: {BOX_COST.toLocaleString("es-AR")}</span>
+                </div>
+              ) : null}
 
               <div className="mt-3 grid grid-cols-2 gap-2 md:hidden">
                 <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2.5 text-left">
@@ -683,7 +777,11 @@ export default function MysteryBoxPage() {
               <button
                 onClick={handleOpenBox}
                 disabled={!canOpen}
-                className="inline-flex w-full max-w-[320px] items-center justify-center gap-2 rounded-[20px] bg-fuchsia-600 px-7 py-3.5 text-sm font-black text-white shadow-[0_0_28px_rgba(217,70,239,0.35)] transition hover:bg-fuchsia-500 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none sm:min-w-[240px] sm:py-4 sm:text-base"
+                className={`inline-flex w-full max-w-[320px] items-center justify-center gap-2 rounded-[20px] px-7 py-3.5 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none sm:min-w-[240px] sm:py-4 sm:text-base ${
+                  hasFreeBox
+                    ? "bg-amber-400 text-black shadow-[0_0_34px_rgba(251,191,36,0.35)] hover:bg-amber-300"
+                    : "bg-fuchsia-600 shadow-[0_0_28px_rgba(217,70,239,0.35)] hover:bg-fuchsia-500"
+                }`}
               >
                 {isGuest ? (
                   <>
@@ -695,6 +793,10 @@ export default function MysteryBoxPage() {
                     <Gift className="h-5 w-5 animate-pulse" />
                     Abriendo caja...
                   </>
+                ) : hasFreeBox ? (
+                  <>
+                    🎰 ABRIR GRATIS ({freeBoxes})
+                  </>
                 ) : (
                   <>
                     <Gift className="h-5 w-5" />
@@ -705,7 +807,13 @@ export default function MysteryBoxPage() {
 
               <div className="inline-flex items-center gap-2 text-xs text-white/55 sm:text-sm">
                 <Coins className="h-4 w-4" />
-                Costo: {BOX_COST.toLocaleString("es-AR")} créditos
+                {hasFreeBox ? (
+                  <span className="font-bold text-amber-300">
+                    Tenés {freeBoxes} Mystery Box gratis
+                  </span>
+                ) : (
+                  <>Costo: {BOX_COST.toLocaleString("es-AR")} créditos</>
+                )}
               </div>
             </div>
 

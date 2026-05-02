@@ -757,7 +757,16 @@ export default function ScanPage() {
           })
         );
       }
+      // 🧠 XP SOLO SI REALMENTE COBRÓ ENTRADA
+const { error: xpError } = await supabase.rpc("add_holy_xp", {
+  p_user_id: guest.user_id,
+  p_amount: 100,
+  p_reason: "valid_entry",
+});
 
+if (xpError) {
+  console.error("No se pudo sumar XP por entrada:", xpError);
+}
       return GUEST_ENTRY_POINTS;
     } catch (err) {
       console.error("Error acreditando puntos de entrada:", err);
@@ -1447,9 +1456,24 @@ export default function ScanPage() {
           showBarDisplay(result);
 
           if (result.ok) {
-            if (typeof result.new_balance === "number") {
-              setLiveHolyPoints(result.new_balance);
-            }
+               // 🧠 XP por canje válido
+  if (result.user_id) {
+    const { error: xpError } = await supabase.rpc("add_holy_xp", {
+      p_user_id: result.user_id,
+      p_amount: 50,
+      p_reason: "redeem",
+    });
+
+    if (xpError) {
+      console.error("No se pudo sumar XP por canje:", xpError);
+    }
+  }
+
+  if (typeof result.new_balance === "number") {
+    setLiveHolyPoints(result.new_balance);
+  }
+
+    
 
             await refreshProfile();
 

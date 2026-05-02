@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useState, useRef } from "react";
+import { ReactNode, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import HolyCoin from "@/components/ui/HolyCoin";
+import { getSupabaseClient } from "@/lib/supabase/client";
 
 type MenuEntry = {
   href: string;
@@ -68,14 +69,41 @@ export default function DashboardShell({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { profile, user, signOut } = useAuth();
+  const supabase = useMemo(() => getSupabaseClient(), []);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [freeBoxes, setFreeBoxes] = useState(0);
 
   const headerRef = useRef<HTMLDivElement | null>(null);
 
   const credits = Number((profile as any)?.holy_points_balance ?? 0);
+
+  useEffect(() => {
+    async function loadFreeBoxes() {
+      if (!user?.id) {
+        setFreeBoxes(0);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("holy_user_progress")
+        .select("free_boxes")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error cargando free_boxes en DashboardShell:", error);
+        return;
+      }
+
+      setFreeBoxes(Number(data?.free_boxes ?? 0));
+    }
+
+    void loadFreeBoxes();
+  }, [user?.id, profile?.id, menuOpen, supabase]);
+
   const role = String((profile as any)?.role || "").toLowerCase();
 
   const isAdmin =
@@ -482,12 +510,41 @@ export default function DashboardShell({
                 <div className="mb-1 text-[11px] uppercase tracking-[0.24em] text-white/45">
                   Puntos
                 </div>
-                <div className="flex items-center gap-2">
-                  <HolyCoin size={24} />
-                  <span className="text-[22px] font-black">
-                    {credits.toLocaleString("es-AR")}
-                  </span>
+
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <HolyCoin size={24} />
+                    <span className="text-[22px] font-black">
+                      {credits.toLocaleString("es-AR")}
+                    </span>
+                  </div>
+
+                  {freeBoxes > 0 ? (
+                    <Link
+                      href="/dashboard/beneficios/mystery-box"
+                      onClick={closeMenu}
+                      className="relative flex h-[68px] w-[64px] shrink-0 flex-col items-center justify-center rounded-2xl border border-amber-300/45 bg-gradient-to-b from-amber-400/20 via-yellow-300/10 to-amber-950/20 px-2 pb-2 pt-2 text-center text-amber-100 shadow-[0_0_24px_rgba(251,191,36,0.26)] transition hover:scale-[1.05] active:scale-95"
+                      title="Abrir Holy Boxes"
+                    >
+                      <span className="mb-1 block text-[17px] leading-none drop-shadow-[0_0_8px_rgba(251,191,36,0.75)]">
+                        🎁
+                      </span>
+
+                      <span className="block text-[9px] font-black uppercase leading-[0.9] tracking-[0.12em] text-amber-100">
+                        HOLY
+                      </span>
+
+                      <span className="mt-0.5 block text-[9px] font-black uppercase leading-[0.9] tracking-[0.12em] text-amber-100">
+                        BOXES
+                      </span>
+
+                      <span className="mt-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-300/25 px-1 text-[9px] font-black leading-none text-amber-50">
+                        {freeBoxes}
+                      </span>
+                    </Link>
+                  ) : null}
                 </div>
+
                 {user?.email ? (
                   <div className="mt-2 truncate text-xs text-white/45">
                     {user.email}
