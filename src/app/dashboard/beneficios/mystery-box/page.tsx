@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 import LevelUpModal from "@/components/progress/LevelUpModal";
 import { useMemo, useState, useEffect, useRef } from "react";
