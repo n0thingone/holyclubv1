@@ -380,7 +380,7 @@ if (xpData?.level_up) {
         .maybeSingle();
 
       if (refreshedProgress) {
-        setFreeBoxes(Number(refreshedProgress.free_boxes ?? 0));
+       setFreeBoxes(Number((refreshedProgress as any)?.free_boxes ?? 0));
       }
 
       // No pisamos el saldo con result.balance para evitar valores viejos.
