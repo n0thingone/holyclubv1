@@ -359,7 +359,7 @@ const credits = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0)
       }
 
 // 🧠 XP por abrir Mystery Box
-const { data: xpData, error: xpError } = await supabase.rpc("add_holy_xp", {
+const { data: xpData, error: xpError } = await (supabase as any).rpc("add_holy_xp", {
   p_user_id: userId,
   p_amount: 30,
   p_reason: "mystery_box",
