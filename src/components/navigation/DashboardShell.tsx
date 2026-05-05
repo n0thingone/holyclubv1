@@ -729,10 +729,10 @@ export default function DashboardShell({
         </>
       )}
 
-      <div
-        style={{ marginTop: headerHeight + 4 }}
-        className="transition-all duration-300"
-      >
+     <div
+  style={{ marginTop: (headerHeight || 96) + 4 }}
+  className="transition-all duration-300"
+>
         {children}
       </div>
 
