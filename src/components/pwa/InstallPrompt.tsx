@@ -105,11 +105,11 @@ export default function InstallPrompt() {
         </p>
 
         <h2 className="text-2xl font-black leading-tight">
-          Instal· HOLY en tu celular
+          Instal√° HOLY en tu celular
         </h2>
 
         <p className="mt-2 text-sm leading-relaxed text-white/65">
-          AccedÈ r·pido a tus QR, puntos, beneficios y HOLY Boxes desde la
+          Acced√© r√°pido a tus QR, puntos, beneficios y HOLY Boxes desde la
           pantalla de inicio.
         </p>
 
@@ -121,9 +121,9 @@ export default function InstallPrompt() {
             </div>
 
             <ol className="space-y-2 text-sm text-white/70">
-              <li>1. Toc· el botÛn de compartir de Safari.</li>
-              <li>2. ElegÌ ìAgregar a pantalla de inicioî.</li>
-              <li>3. Toc· ìAgregarî.</li>
+              <li>1. Toc√° el bot√≥n de compartir de Safari.</li>
+              <li>2. Eleg√≠ ‚ÄúAgregar a pantalla de inicio‚Äù.</li>
+              <li>3. Toc√° ‚ÄúAgregar‚Äù.</li>
             </ol>
           </div>
         ) : (
