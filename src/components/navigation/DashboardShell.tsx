@@ -729,7 +729,7 @@ export default function DashboardShell({
         </>
       )}
 
-<div className="pt-[calc(env(safe-area-inset-top)+74px)] transition-all duration-300">
+<div className="pt-[74px] transition-all duration-300">
   {children}
 </div>
 

@@ -32,10 +32,6 @@
     min-height: 100dvh;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none;
-
-    /* FIX iPhone / PWA safe area */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* Scrollbar */
@@ -107,6 +103,7 @@
     text-shadow: 0 0 20px rgba(190, 113, 255, 0.8);
   }
 
+  /* SAFE AREA (solo para usar en componentes, NO en body) */
   .safe-area {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
