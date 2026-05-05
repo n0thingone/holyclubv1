@@ -73,6 +73,7 @@ export default function DashboardShell({
   const supabase = useMemo(() => getSupabaseClient(), []);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuClosing, setMenuClosing] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [freeBoxes, setFreeBoxes] = useState(0);
@@ -328,13 +329,22 @@ export default function DashboardShell({
   }
 
   function closeMenu() {
-    setMenuOpen(false);
+    if (menuClosing) return;
+
+    setMenuClosing(true);
+
+    setTimeout(() => {
+      setMenuOpen(false);
+      setMenuClosing(false);
+    }, 260);
   }
 
   function openMenu() {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       navigator.vibrate(18);
     }
+
+    setMenuClosing(false);
     setMenuOpen(true);
   }
 
@@ -429,6 +439,17 @@ export default function DashboardShell({
           }
         }
 
+        @keyframes holySidebarOut {
+          0% {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(-110%) scale(0.985);
+            opacity: 0;
+          }
+        }
+
         @keyframes holyHeaderGlow {
           0%,
           100% {
@@ -457,6 +478,11 @@ export default function DashboardShell({
           transform-origin: left center;
         }
 
+        .holy-sidebar-exit {
+          animation: holySidebarOut 0.26s ease-in forwards;
+          transform-origin: left center;
+        }
+
         .holy-header-glow {
           animation: holyHeaderGlow 2.8s ease-in-out infinite;
         }
@@ -470,7 +496,7 @@ export default function DashboardShell({
 
         <div
           className={`mx-auto grid max-w-6xl grid-cols-[92px_1fr_92px] items-center px-4 transition-all duration-300 ${
-            scrolled ? "pt-2 pb-2" : "pt-4 pb-3"
+            scrolled ? "py-2" : "py-3"
           }`}
         >
           <div className="flex justify-start">
@@ -555,7 +581,9 @@ export default function DashboardShell({
             onTouchStart={handleMenuTouchStart}
             onTouchMove={handleMenuTouchMove}
             onTouchEnd={handleMenuTouchEnd}
-            className="holy-sidebar-enter fixed top-0 left-0 z-[70] flex h-full w-[88%] max-w-[372px] flex-col border-r border-fuchsia-500/15 bg-[linear-gradient(180deg,#160722_0%,#0f081b_58%,#09070f_100%)] shadow-[0_0_70px_rgba(0,0,0,0.52)]"
+            className={`${
+              menuClosing ? "holy-sidebar-exit" : "holy-sidebar-enter"
+            } fixed top-0 left-0 z-[70] flex h-full w-[88%] max-w-[372px] flex-col border-r border-fuchsia-500/15 bg-[linear-gradient(180deg,#160722_0%,#0f081b_58%,#09070f_100%)] shadow-[0_0_70px_rgba(0,0,0,0.52)]`}
           >
             <div className="border-b border-white/10 px-5 pb-5 pt-6">
               <div className="mb-4 flex items-start justify-between gap-3">
