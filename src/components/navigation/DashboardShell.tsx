@@ -81,6 +81,8 @@ export default function DashboardShell({
   );
 
   const headerRef = useRef<HTMLDivElement | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchEndXRef = useRef<number | null>(null);
 
   const credits = Number(liveCredits ?? 0);
 
@@ -166,14 +168,36 @@ export default function DashboardShell({
 
     updateHeaderHeight();
 
-    const raf = requestAnimationFrame(updateHeaderHeight);
+    const raf1 = requestAnimationFrame(updateHeaderHeight);
+    const raf2 = requestAnimationFrame(() => {
+      requestAnimationFrame(updateHeaderHeight);
+    });
+
+    const t1 = setTimeout(updateHeaderHeight, 120);
+    const t2 = setTimeout(updateHeaderHeight, 350);
+    const t3 = setTimeout(updateHeaderHeight, 800);
+
+    let observer: ResizeObserver | null = null;
+
+    if (headerRef.current && typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(updateHeaderHeight);
+      observer.observe(headerRef.current);
+    }
+
     window.addEventListener("resize", updateHeaderHeight);
+    window.addEventListener("orientationchange", updateHeaderHeight);
 
     return () => {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      observer?.disconnect();
       window.removeEventListener("resize", updateHeaderHeight);
+      window.removeEventListener("orientationchange", updateHeaderHeight);
     };
-  }, [scrolled]);
+  }, []);
 
   const bottomNavItems = [
     { href: "/dashboard/puntos/home", label: "HOME", icon: Home },
@@ -314,8 +338,33 @@ export default function DashboardShell({
     setMenuOpen(true);
   }
 
+  function handleMenuTouchStart(e: React.TouchEvent) {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchEndXRef.current = null;
+  }
+
+  function handleMenuTouchMove(e: React.TouchEvent) {
+    touchEndXRef.current = e.touches[0].clientX;
+  }
+
+  function handleMenuTouchEnd() {
+    const startX = touchStartXRef.current;
+    const endX = touchEndXRef.current;
+
+    if (startX === null || endX === null) return;
+
+    const distance = startX - endX;
+
+    if (distance > 70) {
+      closeMenu();
+    }
+
+    touchStartXRef.current = null;
+    touchEndXRef.current = null;
+  }
+
   return (
-    <div className="min-h-screen bg-[#050507] pb-24 text-white">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-[#050507] pb-24 text-white">
       <style jsx global>{`
         @keyframes holyMenuButtonPulse {
           0% {
@@ -421,7 +470,7 @@ export default function DashboardShell({
 
         <div
           className={`mx-auto grid max-w-6xl grid-cols-[92px_1fr_92px] items-center px-4 transition-all duration-300 ${
-            scrolled ? "py-2" : "py-3"
+            scrolled ? "pt-2 pb-2" : "pt-4 pb-3"
           }`}
         >
           <div className="flex justify-start">
@@ -502,7 +551,12 @@ export default function DashboardShell({
             onClick={closeMenu}
           />
 
-          <aside className="holy-sidebar-enter fixed top-0 left-0 z-[70] flex h-full w-[88%] max-w-[372px] flex-col border-r border-fuchsia-500/15 bg-[linear-gradient(180deg,#160722_0%,#0f081b_58%,#09070f_100%)] shadow-[0_0_70px_rgba(0,0,0,0.52)]">
+          <aside
+            onTouchStart={handleMenuTouchStart}
+            onTouchMove={handleMenuTouchMove}
+            onTouchEnd={handleMenuTouchEnd}
+            className="holy-sidebar-enter fixed top-0 left-0 z-[70] flex h-full w-[88%] max-w-[372px] flex-col border-r border-fuchsia-500/15 bg-[linear-gradient(180deg,#160722_0%,#0f081b_58%,#09070f_100%)] shadow-[0_0_70px_rgba(0,0,0,0.52)]"
+          >
             <div className="border-b border-white/10 px-5 pb-5 pt-6">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
