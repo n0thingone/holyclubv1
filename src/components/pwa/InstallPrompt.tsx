@@ -109,8 +109,8 @@ export default function InstallPrompt() {
         </h2>
 
         <p className="mt-2 text-sm leading-relaxed text-white/65">
-          Accedé rápido a tus QR, puntos, beneficios y HOLY Boxes desde la
-          pantalla de inicio.
+          Instalá HOLY en tu pantalla de inicio: entrás más rápido, tenés tus QR a mano
+y no tenés que iniciar sesión cada vez.
         </p>
 
         {isIOS ? (
