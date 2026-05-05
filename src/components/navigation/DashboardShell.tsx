@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client";
-
+import InstallPrompt from "@/components/pwa/InstallPrompt";
 import { ReactNode, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -732,7 +732,7 @@ export default function DashboardShell({
 <div className="pt-[74px] transition-all duration-300">
   {children}
 </div>
-
+<InstallPrompt />
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-fuchsia-500/20 bg-[#12041b]/90 backdrop-blur-xl">
         <div className="grid grid-cols-5 px-2 py-2">
           {bottomNavItems.map((item) => {
