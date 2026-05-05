@@ -413,10 +413,10 @@ export default function DashboardShell({
         }
       `}</style>
 
-      <div
-        ref={headerRef}
-        className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-black/78 backdrop-blur-2xl"
-      >
+    <div
+  ref={headerRef}
+  className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-black/78 backdrop-blur-2xl pt-[env(safe-area-inset-top)]"
+>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px holy-header-glow bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent" />
 
         <div
