@@ -22,11 +22,20 @@
     box-sizing: border-box;
   }
 
+  html {
+    min-height: 100%;
+    background: #050505;
+  }
+
   body {
     @apply bg-background text-text-primary;
     min-height: 100dvh;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none;
+
+    /* FIX iPhone / PWA safe area */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* Scrollbar */
@@ -34,13 +43,16 @@
     width: 4px;
     height: 4px;
   }
+
   ::-webkit-scrollbar-track {
     background: #0b0716;
   }
+
   ::-webkit-scrollbar-thumb {
     background: #be71ff44;
     border-radius: 4px;
   }
+
   ::-webkit-scrollbar-thumb:hover {
     background: #be71ff88;
   }
@@ -93,6 +105,19 @@
 
   .glow-text {
     text-shadow: 0 0 20px rgba(190, 113, 255, 0.8);
+  }
+
+  .safe-area {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 
@@ -158,6 +183,7 @@
   0% {
     top: 8px;
   }
+
   100% {
     top: calc(100% - 8px);
   }
@@ -169,8 +195,16 @@
 
 /* Rank positions animation */
 @keyframes rank-glow {
-  0%, 100% { box-shadow: 0 0 10px rgba(190, 113, 255, 0.2); }
-  50% { box-shadow: 0 0 25px rgba(190, 113, 255, 0.5); }
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(190, 113, 255, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 25px rgba(190, 113, 255, 0.5);
+  }
 }
 
-.rank-1 { animation: rank-glow 2s ease-in-out infinite; }
+.rank-1 {
+  animation: rank-glow 2s ease-in-out infinite;
+}
