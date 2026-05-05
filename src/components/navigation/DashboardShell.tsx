@@ -729,12 +729,9 @@ export default function DashboardShell({
         </>
       )}
 
-     <div
-  style={{ marginTop: (headerHeight || 96) + 4 }}
-  className="transition-all duration-300"
->
-        {children}
-      </div>
+<div className="pt-[calc(env(safe-area-inset-top)+74px)] transition-all duration-300">
+  {children}
+</div>
 
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-fuchsia-500/20 bg-[#12041b]/90 backdrop-blur-xl">
         <div className="grid grid-cols-5 px-2 py-2">
