@@ -18,6 +18,11 @@ type Profile = {
   email: string;
   username: string | null;
   role: string | null;
+
+  // IMPORTANTE:
+  // Dejamos este nombre para no romper DashboardShell/Home/MysteryBox,
+  // pero desde ahora este valor viene de public.holy_points.points.
+  // profiles.holy_points_balance queda legacy.
   holy_points_balance: number;
 };
 
@@ -63,6 +68,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  async function ensureHolyPointsRow(userId: string, initialPoints = 0) {
+    const { data: existingPoints, error: pointsReadError } = await supabase
+      .from("holy_points")
+      .select("user_id, points")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (pointsReadError) {
+      console.error("Error leyendo holy_points:", pointsReadError);
+      return;
+    }
+
+    if (!existingPoints) {
+      const { error: insertPointsError } = await (supabase as any)
+        .from("holy_points")
+        .insert({
+          user_id: userId,
+          points: Number(initialPoints) || 0,
+          reason: initialPoints > 0 ? "Welcome bonus" : "Init balance",
+          created_at: new Date().toISOString(),
+        });
+
+      if (insertPointsError) {
+        console.error("Error creando holy_points:", insertPointsError);
+      }
+    }
+  }
+
   const ensureProfile = useCallback(
     async (authUser: User) => {
       const email = authUser.email ?? "";
@@ -76,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const { data: existingProfile, error: existingError } = await supabase
         .from("profiles")
-        .select("id, role, holy_points_balance")
+        .select("id, role")
         .eq("id", authUser.id)
         .maybeSingle();
 
@@ -93,6 +126,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           full_name: fullName,
           username: fullName,
           role: "cliente",
+
+          // LEGACY: lo mantenemos sincronizado para no romper vistas viejas,
+          // pero el saldo real es holy_points.points.
           holy_points_balance: WELCOME_BONUS,
         };
 
@@ -105,6 +141,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error("Error ensureProfile insert hint:", error?.hint);
           return;
         }
+
+        await ensureHolyPointsRow(authUser.id, WELCOME_BONUS);
 
         if (typeof window !== "undefined") {
           localStorage.setItem(
@@ -128,7 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: (existingProfile as { role?: string } | null)?.role ?? "cliente",
       };
 
-     const { error } = await (supabase as any).from("profiles").upsert(payload, {
+      const { error } = await (supabase as any).from("profiles").upsert(payload, {
         onConflict: "id",
       });
 
@@ -138,6 +176,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error("Error ensureProfile upsert details:", error?.details);
         console.error("Error ensureProfile upsert hint:", error?.hint);
       }
+
+      await ensureHolyPointsRow(authUser.id, 0);
     },
     [supabase]
   );
@@ -146,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (userId: string) => {
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("id,email,username,role,holy_points_balance")
+        .select("id,email,username,role")
         .eq("id", userId)
         .single();
 
@@ -156,12 +196,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const { data: pointsData, error: pointsError } = await supabase
+        .from("holy_points")
+        .select("points")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (pointsError) {
+        console.error("Error loadProfile/holy_points:", pointsError);
+      }
+
+      const canonicalPoints = Number(pointsData?.points ?? 0);
+
       setProfile({
         id: profileData.id,
         email: profileData.email,
         username: profileData.username,
         role: profileData.role,
-        holy_points_balance: Number(profileData.holy_points_balance ?? 0),
+        holy_points_balance: canonicalPoints,
       });
     },
     [supabase]
@@ -172,30 +224,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cleanupPointsSubscription();
 
       const channel = supabase
-        .channel(`holy-points-balance-${userId}`)
+        .channel(`holy-points-${userId}`)
         .on(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
-            table: "profiles",
-            filter: `id=eq.${userId}`,
+            table: "holy_points",
+            filter: `user_id=eq.${userId}`,
           },
           async (payload) => {
             const nextPoints =
               payload.eventType === "DELETE"
                 ? 0
-                : Number(
-                    (payload.new as { holy_points_balance?: number } | null)
-                      ?.holy_points_balance ?? 0
-                  );
+                : Number((payload.new as { points?: number } | null)?.points ?? 0);
 
             setLiveHolyPoints(nextPoints);
+
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(
+                new CustomEvent("holy-credits-updated", {
+                  detail: nextPoints,
+                })
+              );
+            }
           }
         )
         .subscribe((status) => {
           if (status === "CHANNEL_ERROR") {
-            console.error("Realtime profiles channel error");
+            console.error("Realtime holy_points channel error");
           }
         });
 

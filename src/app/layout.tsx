@@ -19,10 +19,25 @@ const orbitron = Orbitron({
 export const metadata: Metadata = {
   title: "HOLY CLUB",
   description: "Sistema de gestión — Holy Club",
+  applicationName: "HOLY CLUB",
+
+  // 🔥 PWA
+  manifest: "/manifest.webmanifest",
+
+  appleWebApp: {
+    capable: true,
+    title: "HOLY",
+    statusBarStyle: "black-translucent",
+  },
+
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0716",
+  themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

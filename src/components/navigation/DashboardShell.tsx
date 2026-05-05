@@ -76,10 +76,34 @@ export default function DashboardShell({
   const [scrolled, setScrolled] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [freeBoxes, setFreeBoxes] = useState(0);
+  const [liveCredits, setLiveCredits] = useState(
+    Number((profile as any)?.holy_points_balance ?? 0)
+  );
 
   const headerRef = useRef<HTMLDivElement | null>(null);
 
-  const credits = Number((profile as any)?.holy_points_balance ?? 0);
+  const credits = Number(liveCredits ?? 0);
+
+  useEffect(() => {
+    setLiveCredits(Number((profile as any)?.holy_points_balance ?? 0));
+  }, [profile?.holy_points_balance]);
+
+  useEffect(() => {
+    function handleCreditsUpdate(event: Event) {
+      const customEvent = event as CustomEvent<number>;
+      const nextCredits = Number(customEvent.detail ?? 0);
+
+      if (Number.isFinite(nextCredits)) {
+        setLiveCredits(nextCredits);
+      }
+    }
+
+    window.addEventListener("holy-credits-updated", handleCreditsUpdate);
+
+    return () => {
+      window.removeEventListener("holy-credits-updated", handleCreditsUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     async function loadFreeBoxes() {

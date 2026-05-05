@@ -159,7 +159,17 @@ function vibrate(ms: number | number[]) {
 function extractRawToken(rawValue: string) {
   if (!rawValue) return "";
 
-  const raw = String(rawValue).trim();
+  const raw = String(rawValue)
+    .replace(/[\r\n\t]+/g, "")
+    .replace(/[“”"'`´]/g, "")
+    .replace(/[–—]/g, "-")
+    .trim();
+
+  // 🔥 MUY IMPORTANTE:
+  // Los canjes normales se guardan en DB como HOLY-REDEEM:xxxx.
+  // No podemos perder el ":" porque si no el RPC no encuentra el QR.
+  const redeemMatch = raw.match(/HOLY-REDEEM:[A-Z0-9-]+/i);
+  if (redeemMatch?.[0]) return redeemMatch[0].trim();
 
   try {
     if (raw.startsWith("http")) {
@@ -169,9 +179,13 @@ function extractRawToken(rawValue: string) {
         url.searchParams.get("qr") ||
         url.searchParams.get("code") ||
         url.searchParams.get("id");
-      if (fromParams) return String(fromParams).trim();
+      if (fromParams) return extractRawToken(String(fromParams));
 
-      const parts = url.pathname.split("/").filter(Boolean);
+      const decodedPath = decodeURIComponent(url.pathname);
+      const pathRedeemMatch = decodedPath.match(/HOLY-REDEEM:[A-Z0-9-]+/i);
+      if (pathRedeemMatch?.[0]) return pathRedeemMatch[0].trim();
+
+      const parts = decodedPath.split("/").filter(Boolean);
       const hcPart = parts.find((part) => /HC[-\s]?[A-Z0-9]+/i.test(part));
       if (hcPart) return hcPart.trim();
 
@@ -187,13 +201,7 @@ function extractRawToken(rawValue: string) {
 
   if (hcMatch?.[0]) return hcMatch[0].trim();
 
-  const compact = gs1Clean
-    .replace(/[\r\n\t]+/g, "")
-    .replace(/[“”"'`´]/g, "")
-    .replace(/[–—]/g, "-")
-    .trim();
-
-  return compact;
+  return gs1Clean.trim();
 }
 
 function normalizeScannerToken(value: string) {
@@ -216,6 +224,35 @@ function normalizeDbToken(value: string) {
     .replace(/[\u0000-\u001F\u007F]/g, "")
     .replace(/\s+/g, "")
     .replace(/[^A-Z0-9-]/g, "");
+}
+
+// 🔥 Token limpio para el RPC de barra.
+// Mantiene HOLY-REDEEM:xxxx intacto.
+// Si el QR viene como URL o con basura, corta desde HOLY-REDEEM.
+function getBarRpcToken(rawValue: string) {
+  const raw = String(rawValue || "")
+    .replace(/[\r\n\t]+/g, "")
+    .replace(/[“”"'`´]/g, "")
+    .replace(/[–—]/g, "-")
+    .trim();
+
+  const extracted = extractRawToken(raw);
+  const redeemMatch =
+    extracted.match(/HOLY-REDEEM:[A-Z0-9-]+/i) ||
+    raw.match(/HOLY-REDEEM:[A-Z0-9-]+/i);
+
+  if (redeemMatch?.[0]) return redeemMatch[0].trim().toUpperCase();
+
+  // Para short_token tipo 5D312 / A4E64.
+  const short = extracted
+    .toUpperCase()
+    .replace(/^\][A-Z0-9]{2}/i, "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9]/g, "")
+    .trim();
+
+  return short || normalizeScannerToken(rawValue);
 }
 
 function buildTokenVariants(rawValue: string) {
@@ -385,7 +422,7 @@ export default function ScanPage() {
       setTimeout(() => {
         focusZebraInput();
       }, 120);
-    }, result.success ? 4200 : 5000);
+    }, result.success ? 1500    : 2600);
   };
 
 
@@ -792,24 +829,21 @@ if (xpError) {
       let gold: any = null;
       let goldError: any = null;
 
-      for (const variant of tokenVariants) {
-        const { data, error } = await supabase
-          .from("gold_qrs")
-          .select("*")
-          .eq("event_id", eventId)
-          .eq("qr_token", variant)
-          .maybeSingle();
+      // ⚡ FIX SPEED: antes hacía 1 query por variante EN FILA.
+      // Ahora las dispara en paralelo y toma la primera coincidencia.
+      const goldResults = await Promise.all(
+        tokenVariants.map((variant) =>
+          supabase
+            .from("gold_qrs")
+            .select("*")
+            .eq("event_id", eventId)
+            .eq("qr_token", variant)
+            .maybeSingle()
+        )
+      );
 
-        if (error) {
-          goldError = error;
-          break;
-        }
-
-        if (data) {
-          gold = data;
-          break;
-        }
-      }
+      goldError = goldResults.find((r) => r.error)?.error ?? null;
+      gold = goldResults.find((r) => r.data)?.data ?? null;
 
       if (!gold && !goldError) {
         const { data: candidates, error: fallbackError } = await supabase
@@ -889,24 +923,20 @@ if (xpError) {
       let g: any = null;
       let guestError: any = null;
 
-      for (const variant of tokenVariants) {
-        const { data, error } = await supabase
-          .from("guest_registrations")
-          .select("*, rrpp_profiles(display_name)")
-          .eq("event_id", eventId)
-          .eq("qr_token", variant)
-          .maybeSingle();
+      // ⚡ FIX SPEED: búsqueda de lista free en paralelo.
+      const guestResults = await Promise.all(
+        tokenVariants.map((variant) =>
+          supabase
+            .from("guest_registrations")
+            .select("*, rrpp_profiles(display_name)")
+            .eq("event_id", eventId)
+            .eq("qr_token", variant)
+            .maybeSingle()
+        )
+      );
 
-        if (error) {
-          guestError = error;
-          break;
-        }
-
-        if (data) {
-          g = data;
-          break;
-        }
-      }
+      guestError = guestResults.find((r) => r.error)?.error ?? null;
+      g = guestResults.find((r) => r.data)?.data ?? null;
 
       if (guestError) {
         console.error("Error validando invitado:", guestError);
@@ -1022,8 +1052,20 @@ if (xpError) {
         checked_in_by: by,
         result: "valid_entry",
       });
+      // 🔥 RRPP reward automático (40 ingresos)
+if (g.rrpp_id) {
+  void supabase.rpc("check_rrpp_bottle_reward", {
+    p_event_id: eventId,
+    p_rrpp_id: g.rrpp_id,
+  });
+}
+      // ⚡ FIX SPEED:
+      // No esperamos puntos/XP para mostrar OK en puerta.
+      // El ingreso se confirma y los puntos corren atrás.
+      const expectedClientPoints =
+        g.user_id && !g.entry_points_awarded ? GUEST_ENTRY_POINTS : 0;
 
-      const clientPointsAdded = await tryAwardEntryPoints({
+      void tryAwardEntryPoints({
         id: g.id,
         user_id: g.user_id,
         entry_points_awarded: g.entry_points_awarded,
@@ -1036,7 +1078,7 @@ if (xpError) {
         rrppName: g.rrpp_profiles?.display_name,
         guest: g,
         color: "green",
-        clientPointsAdded,
+        clientPointsAdded: expectedClientPoints,
       };
     },
     [supabase, event?.qr_entry_until]
@@ -1045,6 +1087,7 @@ if (xpError) {
   const processBarQr = useCallback(
     async (rawValue: string): Promise<{ token: string; result: RedeemResponse }> => {
       const scannerToken = normalizeScannerToken(rawValue);
+      const rpcToken = getBarRpcToken(rawValue);
 
       // Token para mostrar / usar en canjes normales.
       let token = scannerToken
@@ -1063,7 +1106,7 @@ if (xpError) {
         .replace(/-/g, "")
         .trim();
 
-      if (!scannerToken && !token && !rrppToken) {
+      if (!scannerToken && !token && !rrppToken && !rpcToken) {
         return {
           token: "",
           result: {
@@ -1077,7 +1120,7 @@ if (xpError) {
       const tokenVariants = buildTokenVariants(rawValue);
       const cleanVariants = buildTokenVariants(token);
       const allVariants = Array.from(
-        new Set([scannerToken, token, rrppToken, ...tokenVariants, ...cleanVariants])
+        new Set([scannerToken, token, rrppToken, rpcToken, ...tokenVariants, ...cleanVariants])
       ).filter(Boolean);
 
       // 1) PRIMERO: CONSUMICIÓN RRPP POR EVENTO
@@ -1266,8 +1309,12 @@ if (xpError) {
       }
 
       // 2) SI NO ES RRPP: CANJE NORMAL DE REWARDS
+      console.log("BAR RAW:", rawValue);
+      console.log("BAR RPC TOKEN:", rpcToken);
+      console.log("BAR SCANNER TOKEN:", scannerToken);
+
       const { data, error } = await supabase.rpc("redeem_reward_qr", {
-        p_qr_token: token || scannerToken,
+        p_qr_token: rpcToken || scannerToken || token,
       });
 
       if (error) {
@@ -1362,13 +1409,10 @@ if (xpError) {
       console.log("MAIN MODE:", mainMode);
       console.log("EVENT ID:", event?.id);
 
-      setModalState({
-        open: true,
-        status: "loading",
-        title: mainMode === "entrada" ? "Validando ingreso..." : "Procesando canje...",
-        message: "Esperá un segundo",
-        detail: "",
-      });
+      // ⚡ FIX SPEED:
+      // No abrimos modal de "procesando". La pantalla pasa directo a OK / ALTO.
+      // Esto evita la sensación de espera en puerta/barra.
+      setModalState((prev) => ({ ...prev, open: false }));
 
       try {
         if (mainMode === "entrada") {
@@ -1423,7 +1467,7 @@ if (xpError) {
               ].slice(0, 8)
             );
 
-            closeModalLater(result.result === "gold_entry" ? 2200 : 1800);
+            closeModalLater(result.result === "gold_entry" ? 900 : 650);
           } else {
             playBeep(false);
             vibrate(250);
@@ -1444,7 +1488,7 @@ if (xpError) {
                   : "No se pudo habilitar el ingreso",
             });
 
-            closeModalLater(2200);
+            closeModalLater(850);
           }
 
           void fetchNightStats();
@@ -1456,32 +1500,33 @@ if (xpError) {
           showBarDisplay(result);
 
           if (result.ok) {
-               // 🧠 XP por canje válido
-  if (result.user_id) {
-    const { error: xpError } = await supabase.rpc("add_holy_xp", {
-      p_user_id: result.user_id,
-      p_amount: 50,
-      p_reason: "redeem",
-    });
-
-    if (xpError) {
-      console.error("No se pudo sumar XP por canje:", xpError);
-    }
-  }
-
-  if (typeof result.new_balance === "number") {
-    setLiveHolyPoints(result.new_balance);
-  }
-
-    
-
-            await refreshProfile();
-
             const niceRewardName = getNiceRewardName(result);
 
+            // ⚡ FIX SPEED:
+            // Primero feedback visual/sonoro, después XP/perfil en segundo plano.
             playBeep(true);
             vibrate(120);
             triggerBarFlash("success");
+
+            if (typeof result.new_balance === "number") {
+              setLiveHolyPoints(result.new_balance);
+            }
+
+            void (async () => {
+              if (result.user_id) {
+                const { error: xpError } = await supabase.rpc("add_holy_xp", {
+                  p_user_id: result.user_id,
+                  p_amount: 50,
+                  p_reason: "redeem",
+                });
+
+                if (xpError) {
+                  console.error("No se pudo sumar XP por canje:", xpError);
+                }
+              }
+
+              await refreshProfile();
+            })();
 
             setModalState({
               open: true,
@@ -1523,7 +1568,7 @@ if (xpError) {
 
             setManualToken("");
             setZebraBuffer("");
-            closeModalLater(1800);
+            closeModalLater(650);
             resetBarResultLater(5200);
           } else {
             playBeep(false);
@@ -1567,16 +1612,17 @@ if (xpError) {
               ].slice(0, 8)
             );
 
-            closeModalLater(2500);
+            closeModalLater(900);
             resetBarResultLater(5200);
           }
         }
       } finally {
+        // ⚡ antes eran 1200ms fijos. Eso hacía lento el siguiente scan.
         setTimeout(() => {
           setProcessing(false);
           processingRef.current = false;
           if (scanInputMode === "zebra") focusZebraInput();
-        }, 1200);
+        }, 120);
       }
     },
     [
@@ -1615,7 +1661,7 @@ if (xpError) {
 
     zebraSubmitTimeoutRef.current = setTimeout(() => {
       void handleZebraSubmit(nextValue);
-    }, 180);
+    }, 30);
   };
 
   const RC = {

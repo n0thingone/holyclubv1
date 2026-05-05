@@ -401,11 +401,13 @@ export default function PuntosHomePage() {
             .eq("status", "active")
             .maybeSingle(),
           supabase
-            .from("holy_rewards")
-            .select("id,name,description,points_cost")
-            .eq("active", true)
-            .order("points_cost", { ascending: true })
-            .limit(8),
+        
+  .from("holy_rewards")
+  .select("id,name,description,points_cost")
+  .eq("active", true)
+  .gt("points_cost", 0) // 👈 ESTE ES EL FIX
+  .order("points_cost", { ascending: true })
+  .limit(8),
         ]);
 
       setActiveEvent((eventData as EventRow | null) ?? null);

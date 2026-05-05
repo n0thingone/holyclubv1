@@ -34,7 +34,7 @@ const ROLE_OPTIONS: RoleOption[] = ["cliente", "rrpp", "cashier", "admin"];
 
 export default function AdminPointsPage() {
   const supabase = useMemo(() => getSupabaseClient(), []);
-  const { profile, loading, refreshProfile } = useAuth() as any;
+  const { profile, loading, setLiveHolyPoints } = useAuth() as any;
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchUser[]>([]);
@@ -171,6 +171,23 @@ export default function AdminPointsPage() {
         selectedUser.holy_points_balance
     );
 
+    // 🔥 FIX DEFINITIVO:
+    // Si el usuario editado sos vos, actualizamos el header al instante.
+    // NO llamamos refreshProfile acá porque puede traer el saldo viejo y pisar el nuevo.
+    if (selectedUser.id === profile?.id) {
+      if (typeof setLiveHolyPoints === "function") {
+        setLiveHolyPoints(newBalance);
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("holy-credits-updated", {
+            detail: newBalance,
+          })
+        );
+      }
+    }
+
     setSelectedUser((prev) =>
       prev ? { ...prev, holy_points_balance: newBalance } : prev
     );
@@ -188,13 +205,6 @@ export default function AdminPointsPage() {
 
     await loadMovements(selectedUser.id);
 
-    if (typeof refreshProfile === "function") {
-      try {
-        await refreshProfile();
-      } catch {
-        // noop
-      }
-    }
   }
 
   async function submitRoleUpdate() {
@@ -233,13 +243,6 @@ export default function AdminPointsPage() {
 
     setRoleMessage("Rol actualizado correctamente.");
 
-    if (typeof refreshProfile === "function") {
-      try {
-        await refreshProfile();
-      } catch {
-        // noop
-      }
-    }
   }
 
   useEffect(() => {

@@ -514,6 +514,16 @@ export default function MovimientosPage() {
       .slice(0, 40);
   }, [movements, redemptions, rewardNames, now]);
 
+  const visibleRedemptions = useMemo(() => {
+    return redemptions
+      .filter((r) => r.status === "pending" || r.status === "redeemed")
+      .sort((a, b) => {
+        if (a.status === "pending" && b.status !== "pending") return -1;
+        if (a.status !== "pending" && b.status === "pending") return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+  }, [redemptions]);
+
   return (
     <DashboardShell title="MIS QR">
       <div className="mx-auto max-w-4xl space-y-4 px-4 pb-24 -mt-2">
@@ -771,16 +781,16 @@ export default function MovimientosPage() {
               </div>
             ) : activeTab === "canjes" ? (
               <div className="space-y-3">
-                {loading && redemptions.length === 0 ? (
+                {loading && visibleRedemptions.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center text-sm text-white/50">
                     Cargando QR...
                   </div>
-                ) : redemptions.length === 0 ? (
+                ) : visibleRedemptions.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-6 text-center text-sm text-white/50">
                     Todavía no tenés canjes QR generados.
                   </div>
                 ) : (
-                  redemptions.map((r) => {
+                  visibleRedemptions.map((r) => {
                     const state = getState(r);
 
                     const countdown =
@@ -850,14 +860,17 @@ export default function MovimientosPage() {
                             </div>
 
                             <div className="shrink-0">
-                              {state.key === "pending" ? (
-                                <button
-                                  onClick={() => setSelectedQR(r)}
-                                  className="rounded-2xl bg-[linear-gradient(135deg,#d946ef,#a21caf)] px-4 py-2.5 text-xs font-black text-white shadow-[0_0_26px_rgba(217,70,239,0.22)] transition hover:scale-[1.02] active:scale-[0.98]"
-                                >
-                                  VER QR
-                                </button>
-                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedQR(r)}
+                                className={`rounded-2xl px-4 py-2.5 text-xs font-black transition ${
+                                  state.key === "pending"
+                                    ? "bg-[linear-gradient(135deg,#d946ef,#a21caf)] text-white shadow-[0_0_26px_rgba(217,70,239,0.22)] hover:scale-[1.02] active:scale-[0.98]"
+                                    : "bg-white/10 text-white/40"
+                                }`}
+                              >
+                                {state.key === "pending" ? "VER QR" : "VER"}
+                              </button>
                             </div>
                           </div>
                         </div>
