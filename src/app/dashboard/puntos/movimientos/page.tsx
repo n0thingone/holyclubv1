@@ -39,7 +39,7 @@ type Redemption = {
   reward_id: string;
   qr_token: string;
   short_token: string;
-  status: "pending" | "redeemed" | "expired";
+  status: "pending" | "used" | "redeemed" | "expired";
   expires_at: string | null;
   redeemed_at: string | null;
   created_at: string;
@@ -325,6 +325,14 @@ export default function MovimientosPage() {
     return `${minutes}m`;
   }
 
+  function isRedemptionUsed(status: Redemption["status"]) {
+    return status === "used" || status === "redeemed";
+  }
+
+  function isQrOpen(stateKey: string) {
+    return stateKey === "pending" || stateKey === "available";
+  }
+
   function getEntryState(entry: EntryQR) {
     const rawStatus = String(entry.registration_status ?? "").toLowerCase();
     const entered =
@@ -381,7 +389,7 @@ export default function MovimientosPage() {
   }
 
   function getState(r: Redemption) {
-    if (r.status === "redeemed") {
+    if (isRedemptionUsed(r.status)) {
       return {
         key: "redeemed" as const,
         label: "CANJEADO",
@@ -397,7 +405,7 @@ export default function MovimientosPage() {
 
     if (!r.expires_at) {
       return {
-        key: "pending" as const,
+        key: "available" as const,
         label: "DISPONIBLE",
         shortLabel: "ACTIVO",
         color: "text-cyan-400",
@@ -478,7 +486,7 @@ export default function MovimientosPage() {
         positive: true,
       });
 
-      if (r.status === "redeemed" && r.redeemed_at) {
+      if (isRedemptionUsed(r.status) && r.redeemed_at) {
         items.push({
           id: `red-used-${r.id}`,
           kind: "redemption_redeemed",
@@ -514,15 +522,29 @@ export default function MovimientosPage() {
       .slice(0, 40);
   }, [movements, redemptions, rewardNames, now]);
 
-  const visibleRedemptions = useMemo(() => {
-    return redemptions
-      .filter((r) => r.status === "pending" || r.status === "redeemed")
-      .sort((a, b) => {
-        if (a.status === "pending" && b.status !== "pending") return -1;
-        if (a.status !== "pending" && b.status === "pending") return 1;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-  }, [redemptions]);
+const visibleRedemptions = useMemo(() => {
+  return redemptions
+    .filter((r) => {
+      const isUsed = r.status === "redeemed" || r.status === "used";
+      const isExpiredByStatus = r.status === "expired";
+      const isExpiredByTime =
+        !!r.expires_at && new Date(r.expires_at).getTime() <= now;
+
+      if (isUsed) return true;
+      if (isExpiredByStatus || isExpiredByTime) return false;
+
+      return true;
+    })
+    .sort((a, b) => {
+      if (a.status === "pending" && b.status !== "pending") return -1;
+      if (a.status !== "pending" && b.status === "pending") return 1;
+
+      return (
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+      );
+    });
+}, [redemptions, now]);
 
   return (
     <DashboardShell title="MIS QR">
@@ -792,9 +814,10 @@ export default function MovimientosPage() {
                 ) : (
                   visibleRedemptions.map((r) => {
                     const state = getState(r);
+                    const canOpenQR = isQrOpen(state.key);
 
                     const countdown =
-                      state.key === "pending" && r.expires_at
+                      canOpenQR && r.expires_at
                         ? formatCountdown(new Date(r.expires_at).getTime() - now)
                         : null;
 
@@ -846,7 +869,7 @@ export default function MovimientosPage() {
                                 <div className="mt-1 text-[11px] font-semibold text-cyan-400 sm:text-xs">
                                   Sin vencimiento
                                 </div>
-                              ) : state.key === "pending" ? (
+                              ) : canOpenQR ? (
                                 <div className="mt-1 text-[11px] font-semibold text-amber-400 sm:text-xs">
                                   Vence en: {countdown}
                                 </div>
@@ -860,16 +883,20 @@ export default function MovimientosPage() {
                             </div>
 
                             <div className="shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedQR(r)}
+                          <button
+  type="button"
+  onClick={() => {
+    if (canOpenQR) {
+      setSelectedQR(r);
+    }
+  }}
                                 className={`rounded-2xl px-4 py-2.5 text-xs font-black transition ${
-                                  state.key === "pending"
+                                  canOpenQR
                                     ? "bg-[linear-gradient(135deg,#d946ef,#a21caf)] text-white shadow-[0_0_26px_rgba(217,70,239,0.22)] hover:scale-[1.02] active:scale-[0.98]"
                                     : "bg-white/10 text-white/40"
                                 }`}
                               >
-                                {state.key === "pending" ? "VER QR" : "VER"}
+                                {canOpenQR ? "VER QR" : "CANJEADO"}
                               </button>
                             </div>
                           </div>

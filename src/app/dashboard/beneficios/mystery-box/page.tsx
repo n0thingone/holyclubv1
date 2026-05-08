@@ -403,12 +403,12 @@ if (xpData?.level_up) {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-3 px-3 pb-24 pt-1 text-white md:space-y-6 md:px-4 md:pt-2">
-    <LevelUpModal
+ <LevelUpModal
   open={Boolean(levelUpData)}
   level={levelUpData?.new_level ?? 1}
   rank={levelUpData?.rank ?? "Visitante"}
-  freeBoxesAdded={levelUpData?.free_boxes_added ?? 0}
-  creditsAdded={levelUpData?.credits_added ?? 0}
+  freeBoxesAdded={0}
+  creditsAdded={0}
   onClose={() => setLevelUpData(null)}
 />
       <AnimatePresence>
