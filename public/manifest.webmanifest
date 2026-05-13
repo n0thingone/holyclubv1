@@ -2,6 +2,7 @@
   "name": "HOLY CLUB",
   "short_name": "HOLY",
   "description": "App oficial de HOLY CLUB",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
