@@ -5,12 +5,16 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "HOLY CLUB",
     short_name: "HOLY",
     description: "App oficial de HOLY CLUB",
-    start_url: "/dashboard/puntos/home",
+
+    id: "/",
+    start_url: "/",
+
     scope: "/",
     display: "standalone",
     background_color: "#050505",
     theme_color: "#d4af37",
     orientation: "portrait",
+
     icons: [
       {
         src: "/icons/icon-192.png",
