@@ -32,9 +32,8 @@ export default function InstallPrompt() {
     const canShowAgain =
       !dismissedAt || Date.now() - Number(dismissedAt) > sevenDays;
 
-    // iPhone no tiene beforeinstallprompt.
-    // Por eso sí mostramos el cartel manual con instrucciones.
-    if (ios && !standalone && canShowAgain) {
+    // SIMPLE: mostramos el cartel siempre que no esté instalada.
+    if (!standalone && canShowAgain) {
       const timer = setTimeout(() => {
         setShow(true);
       }, 1800);
@@ -46,18 +45,7 @@ export default function InstallPrompt() {
   useEffect(() => {
     function handleBeforeInstallPrompt(e: Event) {
       e.preventDefault();
-
-      const dismissedAt = localStorage.getItem("holy_install_dismissed_at");
-      const sevenDays = 1000 * 60 * 60 * 24 * 7;
-
-      const canShowAgain =
-        !dismissedAt || Date.now() - Number(dismissedAt) > sevenDays;
-
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-
-      if (canShowAgain && !isStandalone) {
-        setShow(true);
-      }
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -68,27 +56,23 @@ export default function InstallPrompt() {
         handleBeforeInstallPrompt
       );
     };
-  }, [isStandalone]);
+  }, []);
 
   async function handleInstall() {
     if (isIOS) return;
 
     if (!deferredPrompt) {
       alert(
-        "Chrome todavía no habilitó la instalación. Cerrá y abrí Chrome, o tocá ⋮ y buscá 'Instalar app'."
+        "Si no se abre el instalador, tocá los 3 puntitos ⋮ de Chrome y buscá 'Instalar app' o 'Agregar a pantalla principal'."
       );
       return;
     }
 
     await deferredPrompt.prompt();
-
-    const choice = await deferredPrompt.userChoice;
-
-    if (choice.outcome === "accepted") {
-      setShow(false);
-    }
+    await deferredPrompt.userChoice;
 
     setDeferredPrompt(null);
+    setShow(false);
   }
 
   function handleClose() {
