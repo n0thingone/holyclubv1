@@ -1,3 +1,4 @@
+import RegisterSW from "@/components/RegisterSW";
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Orbitron } from "next/font/google";
 import "./globals.css";
@@ -21,7 +22,6 @@ export const metadata: Metadata = {
   description: "Sistema de gestión — Holy Club",
   applicationName: "HOLY CLUB",
 
-  // 🔥 PWA
   manifest: "/manifest.webmanifest",
 
   appleWebApp: {
@@ -54,7 +54,10 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${orbitron.variable} font-sans bg-background text-text-primary antialiased`}
       >
         <AuthProvider>
+          <RegisterSW />
+
           {children}
+
           <Toaster />
         </AuthProvider>
       </body>
