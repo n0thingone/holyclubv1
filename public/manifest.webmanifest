@@ -2,10 +2,11 @@
   "name": "HOLY CLUB",
   "short_name": "HOLY",
   "description": "App oficial de HOLY CLUB",
-  "start_url": "/dashboard/puntos/home",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#050505",
+  "theme_color": "#d44af7",
   "orientation": "portrait",
   "icons": [
     {
@@ -21,7 +22,8 @@
     {
       "src": "/icons/apple-touch-icon.png",
       "sizes": "180x180",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
