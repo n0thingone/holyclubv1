@@ -27,16 +27,16 @@ export default function InstallPrompt() {
     setIsStandalone(standalone);
 
     const dismissedAt = localStorage.getItem("holy_install_dismissed_at");
-    const alreadyShown = localStorage.getItem("holy_install_prompt_seen");
-
     const sevenDays = 1000 * 60 * 60 * 24 * 7;
+
     const canShowAgain =
       !dismissedAt || Date.now() - Number(dismissedAt) > sevenDays;
 
-    if (!standalone && canShowAgain && !alreadyShown) {
+    // iPhone no tiene beforeinstallprompt.
+    // Por eso sí mostramos el cartel manual con instrucciones.
+    if (ios && !standalone && canShowAgain) {
       const timer = setTimeout(() => {
         setShow(true);
-        localStorage.setItem("holy_install_prompt_seen", "true");
       }, 1800);
 
       return () => clearTimeout(timer);
@@ -46,7 +46,18 @@ export default function InstallPrompt() {
   useEffect(() => {
     function handleBeforeInstallPrompt(e: Event) {
       e.preventDefault();
+
+      const dismissedAt = localStorage.getItem("holy_install_dismissed_at");
+      const sevenDays = 1000 * 60 * 60 * 24 * 7;
+
+      const canShowAgain =
+        !dismissedAt || Date.now() - Number(dismissedAt) > sevenDays;
+
       setDeferredPrompt(e as BeforeInstallPromptEvent);
+
+      if (canShowAgain && !isStandalone) {
+        setShow(true);
+      }
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -57,18 +68,20 @@ export default function InstallPrompt() {
         handleBeforeInstallPrompt
       );
     };
-  }, []);
+  }, [isStandalone]);
 
   async function handleInstall() {
-    if (isIOS) {
-      return;
-    }
+    if (isIOS) return;
 
     if (!deferredPrompt) {
+      alert(
+        "Chrome todavía no habilitó la instalación. Cerrá y abrí Chrome, o tocá ⋮ y buscá 'Instalar app'."
+      );
       return;
     }
 
     await deferredPrompt.prompt();
+
     const choice = await deferredPrompt.userChoice;
 
     if (choice.outcome === "accepted") {
@@ -109,8 +122,8 @@ export default function InstallPrompt() {
         </h2>
 
         <p className="mt-2 text-sm leading-relaxed text-white/65">
-          Instalá HOLY en tu pantalla de inicio: entrás más rápido, tenés tus QR a mano
-y no tenés que iniciar sesión cada vez.
+          Instalá HOLY en tu pantalla de inicio: entrás más rápido, tenés tus QR
+          a mano y no tenés que iniciar sesión cada vez.
         </p>
 
         {isIOS ? (
