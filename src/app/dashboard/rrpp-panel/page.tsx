@@ -532,21 +532,21 @@ export default function RrppPage() {
               overflow: "hidden",
             }}
           >
-            {storyEventImageUrl && (
-              <img
-                src={storyEventImageUrl}
-                alt="Evento HOLY"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  opacity: 0.42,
-                  filter: "saturate(1.1) contrast(1.08)",
-                }}
-              />
-            )}
+{storyEventImageUrl && (
+  <div
+    style={{
+      position: "absolute",
+      inset: -40,
+      backgroundImage: `url("${storyEventImageUrl}")`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+      opacity: 0.75,
+      filter: "blur(12px) saturate(1.2) contrast(1.1)",
+      transform: "scale(1.08)",
+    }}
+  />
+)}
 
             <div
               style={{
