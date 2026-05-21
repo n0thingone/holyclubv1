@@ -149,6 +149,8 @@ export default function RrppPage() {
 
     async function loadStoryImageAsBase64() {
       try {
+        console.log("CARGANDO IMAGEN HISTORIA:", storyEventImageUrl);
+
         const response = await fetch(storyEventImageUrl, {
           cache: "no-store",
         });
@@ -162,12 +164,15 @@ export default function RrppPage() {
 
         reader.onloadend = () => {
           if (!cancelled) {
-            setStoryImageDataUrl(String(reader.result || ""));
+            const result = String(reader.result || "");
+            console.log("BASE64 LISTO:", !!result, result.slice(0, 40));
+            setStoryImageDataUrl(result);
           }
         };
 
         reader.onerror = () => {
           if (!cancelled) {
+            console.error("Error leyendo imagen como base64.");
             setStoryImageDataUrl("");
           }
         };
@@ -218,6 +223,18 @@ export default function RrppPage() {
 
     try {
       setGenerating(true);
+
+      console.log("GENERANDO HISTORIA");
+      console.log("URL EVENTO:", storyEventImageUrl);
+      console.log("BASE64 READY:", !!storyImageDataUrl, storyImageDataUrl.slice(0, 40));
+
+      if (!storyImageDataUrl) {
+        alert("La imagen del evento todavía está cargando. Esperá 2 segundos y probá de nuevo.");
+        setGenerating(false);
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 1200));
 
       const dataUrl = await toPng(storyRef.current, {
         cacheBust: true,
@@ -325,11 +342,15 @@ export default function RrppPage() {
 
               <button
                 onClick={generateStory}
-                disabled={generating}
+                disabled={generating || !storyImageDataUrl}
                 className="holy-btn-secondary py-3 text-xs disabled:opacity-60"
               >
                 <ImageIcon className="w-3.5 h-3.5 inline mr-1.5" />
-                {generating ? "GENERANDO..." : "GENERAR HISTORIA"}
+                {generating
+                  ? "GENERANDO..."
+                  : !storyImageDataUrl
+                  ? "CARGANDO IMAGEN..."
+                  : "GENERAR HISTORIA"}
               </button>
 
               {typeof navigator !== "undefined" && "share" in navigator && (
