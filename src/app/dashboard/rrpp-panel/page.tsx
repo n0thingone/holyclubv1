@@ -220,7 +220,6 @@ export default function RrppPage() {
       setGenerating(true);
 
       if (storyEventImageUrl && !storyImageDataUrl) {
-        alert("La imagen del evento todavía está cargando. Esperá 2 segundos y probá de nuevo.");
         setGenerating(false);
         return;
       }
@@ -334,14 +333,24 @@ export default function RrppPage() {
               <button
                 onClick={generateStory}
                 disabled={generating || (!!storyEventImageUrl && !storyImageDataUrl)}
-                className="holy-btn-secondary py-3 text-xs disabled:opacity-60"
+                className="holy-btn-secondary py-3 text-xs disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <ImageIcon className="w-3.5 h-3.5 inline mr-1.5" />
-                {generating
-                  ? "GENERANDO..."
-                  : storyEventImageUrl && !storyImageDataUrl
-                  ? "CARGANDO IMAGEN..."
-                  : "GENERAR HISTORIA"}
+                {generating ? (
+                  <>
+                    <Zap className="w-3.5 h-3.5 inline mr-1.5 animate-pulse" />
+                    GENERANDO...
+                  </>
+                ) : storyEventImageUrl && !storyImageDataUrl ? (
+                  <>
+                    <Clock className="w-3.5 h-3.5 inline mr-1.5 animate-spin" />
+                    CARGANDO FLYER...
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="w-3.5 h-3.5 inline mr-1.5" />
+                    GENERAR HISTORIA
+                  </>
+                )}
               </button>
 
               {typeof navigator !== "undefined" && "share" in navigator && (
