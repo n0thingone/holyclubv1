@@ -588,7 +588,7 @@ export default function RrppPage() {
               width: 1080,
               height: 1920,
               background:
-                "linear-gradient(180deg, #08020d 0%, #15031c 45%, #050507 100%)",
+                "radial-gradient(circle at 50% 50%, rgba(217,70,239,0.16), transparent 44%), radial-gradient(circle at 20% 18%, rgba(244,63,94,0.13), transparent 30%), linear-gradient(180deg, #050507 0%, #0b0210 52%, #050507 100%)",
               color: "white",
               display: "flex",
               alignItems: "center",
@@ -598,122 +598,93 @@ export default function RrppPage() {
               overflow: "hidden",
             }}
           >
-            {storyImageDataUrl && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: -44,
-                  backgroundImage: `url("${storyImageDataUrl}")`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                  backgroundRepeat: "no-repeat",
-                  opacity: 0.96,
-                  filter:
-                    "blur(7px) saturate(1.18) contrast(1.08) brightness(0.78)",
-                  transform: "scale(1.05)",
-                }}
-              />
-            )}
-
-            {!storyImageDataUrl && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background:
-                    "radial-gradient(circle at 30% 18%, rgba(217,70,239,0.26), transparent 34%), radial-gradient(circle at 80% 20%, rgba(244,63,94,0.16), transparent 24%), linear-gradient(180deg, #08020d 0%, #16041f 55%, #050507 100%)",
-                }}
-              />
-            )}
-
             <div
               style={{
                 position: "absolute",
                 inset: 0,
                 background:
-                  "linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(10,2,16,0.5) 42%, rgba(0,0,0,0.20) 100%), radial-gradient(circle at 12% 10%, rgba(244,63,94,0.22), transparent 24%), radial-gradient(circle at 85% 18%, rgba(217,70,239,0.20), transparent 28%), radial-gradient(circle at 50% 96%, rgba(168,85,247,0.28), transparent 34%)",
+                  "radial-gradient(circle at 50% 12%, rgba(217,70,239,0.14), transparent 26%), radial-gradient(circle at 50% 92%, rgba(168,85,247,0.16), transparent 32%)",
               }}
             />
 
             <div
               style={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "linear-gradient(90deg, rgba(244,63,94,0.10), transparent 16%, transparent 84%, rgba(217,70,239,0.12)), linear-gradient(180deg, rgba(255,255,255,0.02), transparent 18%)",
-              }}
-            />
-
-            <div
-              style={{
-                width: 930,
-                height: 1680,
+                width: 925,
+                height: 1685,
                 borderRadius: 64,
                 padding: 2,
                 background:
-                  "linear-gradient(135deg, rgba(244,114,182,0.98) 0%, rgba(217,70,239,0.96) 38%, rgba(168,85,247,0.96) 72%, rgba(244,114,182,0.98) 100%)",
+                  "linear-gradient(135deg, rgba(244,114,182,0.42), rgba(217,70,239,0.48), rgba(168,85,247,0.42))",
                 boxShadow:
-                  "0 0 110px rgba(217,70,239,0.52), 0 0 42px rgba(244,63,94,0.25), inset 0 0 26px rgba(255,255,255,0.16)",
+                  "0 0 95px rgba(217,70,239,0.36), 0 0 44px rgba(244,63,94,0.16)",
                 position: "relative",
+                overflow: "hidden",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 14,
-                  borderRadius: 52,
-                  border: "1px solid rgba(255,255,255,0.20)",
-                  boxShadow:
-                    "inset 0 0 70px rgba(255,255,255,0.05), inset 0 0 110px rgba(217,70,239,0.08)",
-                  pointerEvents: "none",
-                }}
-              />
+              {storyImageDataUrl && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: -28,
+                    backgroundImage: `url("${storyImageDataUrl}")`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    backgroundRepeat: "no-repeat",
+                    filter:
+                      "blur(6px) saturate(1.12) contrast(1.05) brightness(0.58)",
+                    transform: "scale(1.04)",
+                  }}
+                />
+              )}
 
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  borderRadius: 62,
-                background:
-  "linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(217,70,239,0.015) 42%, rgba(0,0,0,0.08) 100%)",
-                  padding: "72px 62px 58px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
+              {!storyImageDataUrl && (
                 <div
                   style={{
                     position: "absolute",
                     inset: 0,
                     background:
-                      "radial-gradient(circle at 10% 8%, rgba(255,255,255,0.08), transparent 20%), radial-gradient(circle at 72% 35%, rgba(217,70,239,0.10), transparent 28%), linear-gradient(180deg, rgba(0,0,0,0.06) 0%, transparent 36%, rgba(0,0,0,0.30) 100%)",
-                    pointerEvents: "none",
+                      "linear-gradient(180deg, rgba(16,3,24,1), rgba(5,5,7,1))",
                   }}
                 />
+              )}
 
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "linear-gradient(180deg, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0.20) 45%, rgba(0,0,0,0.52) 100%)",
+                }}
+              />
+
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: 64,
+                  border: "2px solid rgba(255,255,255,0.16)",
+                  boxShadow:
+                    "inset 0 0 34px rgba(255,255,255,0.045), inset 0 0 80px rgba(217,70,239,0.05)",
+                }}
+              />
+
+              <div
+                style={{
+                  position: "relative",
+                  zIndex: 2,
+                  width: "100%",
+                  height: "100%",
+                  padding: "70px 62px 58px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
                 <div
                   style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 240,
-                    background:
-                      "linear-gradient(180deg, rgba(0,0,0,0.36), transparent)",
-                    pointerEvents: "none",
-                  }}
-                />
-
-                <div
-                  style={{
-                    position: "relative",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "flex-start",
-                    zIndex: 2,
                   }}
                 >
                   <div
@@ -724,11 +695,10 @@ export default function RrppPage() {
                       padding: "18px 28px",
                       borderRadius: 999,
                       background:
-                        "linear-gradient(180deg, rgba(0,0,0,0.38), rgba(0,0,0,0.20))",
-                      border: "1px solid rgba(255,255,255,0.18)",
+                        "linear-gradient(180deg, rgba(0,0,0,0.46), rgba(0,0,0,0.24))",
+                      border: "1px solid rgba(255,255,255,0.17)",
                       boxShadow:
-                        "0 0 42px rgba(217,70,239,0.28), inset 0 0 28px rgba(255,255,255,0.05)",
-                      backdropFilter: "blur(8px)",
+                        "0 0 34px rgba(217,70,239,0.22), inset 0 0 20px rgba(255,255,255,0.035)",
                     }}
                   >
                     <div
@@ -744,7 +714,7 @@ export default function RrppPage() {
                         color: "#09090b",
                         fontSize: 30,
                         fontWeight: 900,
-                        boxShadow: "0 0 34px rgba(217,70,239,0.55)",
+                        boxShadow: "0 0 30px rgba(217,70,239,0.48)",
                       }}
                     >
                       H
@@ -757,7 +727,7 @@ export default function RrppPage() {
                           letterSpacing: "0.34em",
                           color: "#ffffff",
                           fontWeight: 900,
-                          textShadow: "0 3px 16px rgba(0,0,0,0.70)",
+                          textShadow: "0 3px 16px rgba(0,0,0,0.75)",
                         }}
                       >
                         HOLY CLUB
@@ -771,6 +741,7 @@ export default function RrppPage() {
                           letterSpacing: "0.16em",
                           textTransform: "uppercase",
                           fontWeight: 900,
+                          textShadow: "0 3px 12px rgba(0,0,0,0.7)",
                         }}
                       >
                         Lista RRPP
@@ -783,16 +754,15 @@ export default function RrppPage() {
                       padding: "16px 26px",
                       borderRadius: 999,
                       background:
-                        "linear-gradient(180deg, rgba(217,70,239,0.28), rgba(88,28,135,0.26))",
-                      border: "1px solid rgba(255,255,255,0.16)",
+                        "linear-gradient(180deg, rgba(217,70,239,0.22), rgba(0,0,0,0.22))",
+                      border: "1px solid rgba(255,255,255,0.14)",
                       color: "#ffffff",
                       fontSize: 17,
                       fontWeight: 900,
                       letterSpacing: "0.18em",
                       textTransform: "uppercase",
-                      boxShadow:
-                        "0 0 36px rgba(217,70,239,0.22), inset 0 0 20px rgba(255,255,255,0.04)",
-                      backdropFilter: "blur(8px)",
+                      boxShadow: "0 0 28px rgba(217,70,239,0.18)",
+                      textShadow: "0 3px 14px rgba(0,0,0,0.8)",
                     }}
                   >
                     VIP ACCESS
@@ -801,23 +771,21 @@ export default function RrppPage() {
 
                 <div
                   style={{
-                    position: "relative",
-                    zIndex: 2,
                     display: "flex",
                     flexDirection: "column",
                     gap: 24,
-                    marginTop: 130,
+                    marginTop: 120,
                   }}
                 >
                   <div
                     style={{
-                      fontSize: 122,
-                      lineHeight: 0.9,
+                      fontSize: 124,
+                      lineHeight: 0.88,
                       fontWeight: 900,
-                      letterSpacing: "-0.055em",
+                      letterSpacing: "-0.058em",
                       textTransform: "uppercase",
                       textShadow:
-                        "0 10px 38px rgba(0,0,0,0.96), 0 0 48px rgba(255,255,255,0.16), 0 0 40px rgba(217,70,239,0.25)",
+                        "0 12px 38px rgba(0,0,0,0.98), 0 0 46px rgba(217,70,239,0.24)",
                     }}
                   >
                     ANOTATE
@@ -834,15 +802,14 @@ export default function RrppPage() {
                       padding: "18px 30px",
                       borderRadius: 999,
                       background:
-                        "linear-gradient(180deg, rgba(0,0,0,0.42), rgba(0,0,0,0.24))",
+                        "linear-gradient(180deg, rgba(0,0,0,0.50), rgba(0,0,0,0.28))",
                       border: "1px solid rgba(255,255,255,0.16)",
                       color: "#ffffff",
                       fontSize: 31,
                       fontWeight: 900,
                       boxShadow:
-                        "0 0 34px rgba(217,70,239,0.22), inset 0 0 20px rgba(255,255,255,0.04)",
-                      backdropFilter: "blur(6px)",
-                      textShadow: "0 4px 16px rgba(0,0,0,0.72)",
+                        "0 0 30px rgba(217,70,239,0.16), inset 0 0 18px rgba(255,255,255,0.025)",
+                      textShadow: "0 4px 16px rgba(0,0,0,0.78)",
                     }}
                   >
                     {rrpp?.display_name || "RRPP HOLY"}
@@ -861,16 +828,15 @@ export default function RrppPage() {
                         padding: "16px 26px",
                         borderRadius: 999,
                         background:
-                          "linear-gradient(180deg, rgba(217,70,239,0.25), rgba(88,28,135,0.18))",
-                        border: "1px solid rgba(240,171,252,0.55)",
+                          "linear-gradient(180deg, rgba(217,70,239,0.20), rgba(0,0,0,0.26))",
+                        border: "1px solid rgba(240,171,252,0.42)",
                         color: "#ffffff",
                         fontSize: 22,
                         fontWeight: 900,
                         textTransform: "uppercase",
                         letterSpacing: "0.075em",
-                        boxShadow:
-                          "0 0 34px rgba(217,70,239,0.38), inset 0 0 22px rgba(255,255,255,0.05)",
-                        backdropFilter: "blur(6px)",
+                        boxShadow: "0 0 26px rgba(217,70,239,0.22)",
+                        textShadow: "0 4px 16px rgba(0,0,0,0.8)",
                       }}
                     >
                       ◷ Lista free hasta 2:30 AM
@@ -881,16 +847,15 @@ export default function RrppPage() {
                         padding: "16px 26px",
                         borderRadius: 999,
                         background:
-                          "linear-gradient(180deg, rgba(34,197,94,0.22), rgba(5,46,22,0.20))",
-                        border: "1px solid rgba(74,222,128,0.58)",
+                          "linear-gradient(180deg, rgba(34,197,94,0.18), rgba(0,0,0,0.26))",
+                        border: "1px solid rgba(74,222,128,0.46)",
                         color: "#86efac",
                         fontSize: 22,
                         fontWeight: 900,
                         textTransform: "uppercase",
                         letterSpacing: "0.075em",
-                        boxShadow:
-                          "0 0 34px rgba(34,197,94,0.28), inset 0 0 20px rgba(255,255,255,0.04)",
-                        backdropFilter: "blur(6px)",
+                        boxShadow: "0 0 26px rgba(34,197,94,0.18)",
+                        textShadow: "0 4px 16px rgba(0,0,0,0.8)",
                       }}
                     >
                       $ Sumá créditos si tenés cuenta
@@ -902,16 +867,15 @@ export default function RrppPage() {
                           padding: "16px 26px",
                           borderRadius: 999,
                           background:
-                            "linear-gradient(180deg, rgba(59,130,246,0.24), rgba(30,58,138,0.22))",
-                          border: "1px solid rgba(96,165,250,0.58)",
+                            "linear-gradient(180deg, rgba(59,130,246,0.18), rgba(0,0,0,0.26))",
+                          border: "1px solid rgba(96,165,250,0.46)",
                           color: "#93c5fd",
                           fontSize: 22,
                           fontWeight: 900,
                           letterSpacing: "0.065em",
                           textTransform: "uppercase",
-                          boxShadow:
-                            "0 0 34px rgba(59,130,246,0.26), inset 0 0 20px rgba(255,255,255,0.04)",
-                          backdropFilter: "blur(6px)",
+                          boxShadow: "0 0 26px rgba(59,130,246,0.18)",
+                          textShadow: "0 4px 16px rgba(0,0,0,0.8)",
                         }}
                       >
                         ▣ Evento: {event.name}
@@ -926,7 +890,7 @@ export default function RrppPage() {
                       lineHeight: 1.34,
                       color: "rgba(255,255,255,0.96)",
                       maxWidth: 780,
-                      textShadow: "0 5px 24px rgba(0,0,0,0.88)",
+                      textShadow: "0 5px 24px rgba(0,0,0,0.92)",
                     }}
                   >
                     Entrá desde mi link y anotate para esta noche.
@@ -937,16 +901,13 @@ export default function RrppPage() {
 
                 <div
                   style={{
-                    position: "relative",
-                    zIndex: 2,
                     borderRadius: 34,
                     padding: "34px 30px",
                     background:
-                      "linear-gradient(180deg, rgba(0,0,0,0.34), rgba(0,0,0,0.24))",
-                    border: "1px solid rgba(240,171,252,0.32)",
+                      "linear-gradient(180deg, rgba(0,0,0,0.42), rgba(0,0,0,0.30))",
+                    border: "1px solid rgba(240,171,252,0.26)",
                     boxShadow:
-                      "0 0 70px rgba(217,70,239,0.26), inset 0 0 28px rgba(255,255,255,0.045)",
-                    backdropFilter: "blur(8px)",
+                      "0 0 48px rgba(217,70,239,0.16), inset 0 0 24px rgba(255,255,255,0.025)",
                   }}
                 >
                   <div
@@ -957,6 +918,7 @@ export default function RrppPage() {
                       color: "#d8b4fe",
                       marginBottom: 18,
                       fontWeight: 900,
+                      textShadow: "0 3px 14px rgba(0,0,0,0.8)",
                     }}
                   >
                     Entrá desde mi link
@@ -966,9 +928,9 @@ export default function RrppPage() {
                     style={{
                       borderRadius: 22,
                       padding: "22px 24px",
-                      background: "rgba(0,0,0,0.54)",
-                      border: "1px solid rgba(217,70,239,0.28)",
-                      boxShadow: "inset 0 0 22px rgba(0,0,0,0.22)",
+                      background: "rgba(0,0,0,0.56)",
+                      border: "1px solid rgba(217,70,239,0.24)",
+                      boxShadow: "inset 0 0 20px rgba(0,0,0,0.22)",
                     }}
                   >
                     <div
@@ -978,7 +940,7 @@ export default function RrppPage() {
                         wordBreak: "break-word",
                         fontWeight: 800,
                         lineHeight: 1.35,
-                        textShadow: "0 3px 18px rgba(0,0,0,0.8)",
+                        textShadow: "0 3px 18px rgba(0,0,0,0.85)",
                       }}
                     >
                       🔗 {myLink}
