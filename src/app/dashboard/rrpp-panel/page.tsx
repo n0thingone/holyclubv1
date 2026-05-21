@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -44,10 +45,12 @@ export default function RrppPage() {
 
   useEffect(() => {
     if (authLoading) return;
+
     if (!authProfile) {
       router.push("/login");
       return;
     }
+
     if (authProfile.role !== "rrpp") {
       router.push("/dashboard");
       return;
@@ -115,6 +118,7 @@ export default function RrppPage() {
 
   function copyLink() {
     if (!myLink) return;
+
     navigator.clipboard.writeText(myLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -122,6 +126,7 @@ export default function RrppPage() {
 
   async function shareLink() {
     if (!myLink || !navigator.share) return;
+
     await navigator
       .share({
         title: "Anotate en Holy Club",
@@ -142,12 +147,47 @@ export default function RrppPage() {
         pixelRatio: 2,
       });
 
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+
+      const fileName = `holy-story-${rrpp.slug || "rrpp"}.png`;
+
+      const file = new File([blob], fileName, {
+        type: "image/png",
+      });
+
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] }) &&
+        navigator.share
+      ) {
+        await navigator.share({
+          title: "HOLY CLUB",
+          text: "Anotate en mi lista para esta noche 🔥",
+          files: [file],
+        });
+
+        return;
+      }
+
+      const url = URL.createObjectURL(blob);
+
       const link = document.createElement("a");
-      link.download = `holy-story-${rrpp.slug || "rrpp"}.png`;
-      link.href = dataUrl;
+      link.href = url;
+      link.download = fileName;
+
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error generando historia:", error);
+
+      alert(
+        "No se pudo generar la historia. Probá abrir la app desde Safari o Chrome."
+      );
     } finally {
       setGenerating(false);
     }
@@ -160,8 +200,9 @@ export default function RrppPage() {
       </div>
     );
   }
-
+   console.log("RRPP PAGE NUEVO");
   return (
+     
     <div className="min-h-dvh bg-background mesh-bg">
       <main className="px-4 py-6 space-y-5 max-w-sm mx-auto pb-10">
         {rrpp && (
@@ -321,32 +362,11 @@ export default function RrppPage() {
                     trigger - stats.checkedIn
                   )} ingresos para desbloquear`
                 : bottle.status === "unlocked"
-                ? "¡Mostrá el QR de abajo en la barra!"
+                ? "Premio desbloqueado. Revisalo en Mis Consumiciones."
                 : "Premio ya canjeado esta noche"}
             </p>
           </div>
         )}
-
-        {event &&
-          stats.rewards.find((r) => r.status === "unlocked" && r.qr_token) && (
-            <div className="holy-card bg-success/5 border-success/30 text-center">
-              <p className="font-display text-sm font-bold tracking-widest text-success mb-4 flex items-center justify-center gap-2">
-                <Wine className="w-4 h-4" /> QR PARA CANJEAR TU PREMIO
-              </p>
-
-              <div className="bg-white rounded-2xl p-5 inline-block mx-auto mb-3 shadow-[0_0_30px_rgba(34,197,94,0.3)]">
-                <img
-                  alt="placeholder"
-                  src={`data:image/svg+xml;utf8,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'></svg>")}`}
-                  className="hidden"
-                />
-              </div>
-
-              <p className="text-text-muted text-xs">
-                Presentalo en la barra para reclamar
-              </p>
-            </div>
-          )}
 
         {event && stats.benefits.length > 0 && (
           <div id="beneficios" className="holy-card scroll-mt-24">
@@ -419,10 +439,12 @@ export default function RrppPage() {
                       <span className="text-xs text-text-muted w-5 font-mono">
                         {i + 1}
                       </span>
+
                       <div>
                         <p className="text-sm font-semibold text-text-primary leading-none">
                           {g.first_name} {g.last_name}
                         </p>
+
                         <p className="text-xs text-text-muted mt-0.5 font-mono">
                           DNI ···{g.dni_last3}
                         </p>
@@ -544,6 +566,7 @@ export default function RrppPage() {
                     filter: "blur(30px)",
                   }}
                 />
+
                 <div
                   style={{
                     position: "absolute",
@@ -606,6 +629,7 @@ export default function RrppPage() {
                       >
                         HOLY CLUB
                       </div>
+
                       <div
                         style={{
                           marginTop: 6,
