@@ -35,6 +35,7 @@ export default function RrppPage() {
   const [guests, setGuests] = useState<GuestRegistration[]>([]);
   const [generating, setGenerating] = useState(false);
   const [eventImageUrl, setEventImageUrl] = useState("");
+  const [storyImageDataUrl, setStoryImageDataUrl] = useState("");
 
   const storyRef = useRef<HTMLDivElement>(null);
 
@@ -137,6 +138,57 @@ export default function RrppPage() {
   const appUrl = typeof window !== "undefined" ? window.location.origin : "";
   const myLink = rrpp ? `${appUrl}/lista/${rrpp.slug}` : "";
   const storyEventImageUrl = eventImageUrl || (event as any)?.event_image_url || "";
+
+  useEffect(() => {
+    if (!storyEventImageUrl) {
+      setStoryImageDataUrl("");
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadStoryImageAsBase64() {
+      try {
+        const response = await fetch(storyEventImageUrl, {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error("No se pudo cargar la imagen del evento.");
+        }
+
+        const blob = await response.blob();
+        const reader = new FileReader();
+
+        reader.onloadend = () => {
+          if (!cancelled) {
+            setStoryImageDataUrl(String(reader.result || ""));
+          }
+        };
+
+        reader.onerror = () => {
+          if (!cancelled) {
+            setStoryImageDataUrl("");
+          }
+        };
+
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error("Error cargando imagen historia:", error);
+
+        if (!cancelled) {
+          setStoryImageDataUrl("");
+        }
+      }
+    }
+
+    loadStoryImageAsBase64();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storyEventImageUrl]);
+
   const bottle = stats.rewards.find((r) => r.reward_type === "bottle");
   const trigger = bottle?.trigger_count ?? 35;
   const pct = Math.min((stats.checkedIn / trigger) * 100, 100);
@@ -170,6 +222,8 @@ export default function RrppPage() {
       const dataUrl = await toPng(storyRef.current, {
         cacheBust: true,
         pixelRatio: 2,
+        imagePlaceholder:
+          "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
       });
 
       const response = await fetch(dataUrl);
@@ -532,12 +586,12 @@ export default function RrppPage() {
               overflow: "hidden",
             }}
           >
-{storyEventImageUrl && (
+{storyImageDataUrl && (
   <div
     style={{
       position: "absolute",
       inset: -40,
-      backgroundImage: `url("${storyEventImageUrl}")`,
+      backgroundImage: `url("${storyImageDataUrl}")`,
       backgroundSize: "cover",
       backgroundPosition: "center",
       backgroundRepeat: "no-repeat",
@@ -711,7 +765,8 @@ export default function RrppPage() {
                       fontWeight: 900,
                       letterSpacing: "-0.05em",
                       textTransform: "uppercase",
-                      textShadow: "0 0 40px rgba(217,70,239,0.16)",
+                      textShadow:
+                        "0 8px 34px rgba(0,0,0,0.92), 0 0 42px rgba(217,70,239,0.36)",
                     }}
                   >
                     ANOTATE
