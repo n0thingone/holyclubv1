@@ -3,7 +3,7 @@
 import InstallPrompt from "@/components/pwa/InstallPrompt";
 import { ReactNode, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import {
   Home,
   Gift,
@@ -69,7 +69,8 @@ export default function DashboardShell({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { profile, user, signOut } = useAuth();
+ const { profile, user, signOut, loading: authLoading } = useAuth();
+const router = useRouter();
   const supabase = useMemo(() => getSupabaseClient(), []);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -84,7 +85,31 @@ export default function DashboardShell({
   const headerRef = useRef<HTMLDivElement | null>(null);
   const touchStartXRef = useRef<number | null>(null);
   const touchEndXRef = useRef<number | null>(null);
+ 
+  useEffect(() => {
+  if (authLoading) return;
 
+  if (!user || !profile) {
+    const redirectTo = pathname || "/dashboard/puntos/home";
+    router.replace(`/login?redirect=${encodeURIComponent(redirectTo)}`);
+  }
+}, [authLoading, user, profile, pathname, router]);
+
+if (authLoading) {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
+      Cargando...
+    </div>
+  );
+}
+
+if (!user || !profile) {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
+      Cargando...
+    </div>
+  );
+}
   const credits = Number(liveCredits ?? 0);
 
   useEffect(() => {
