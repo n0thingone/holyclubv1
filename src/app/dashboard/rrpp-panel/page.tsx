@@ -988,7 +988,7 @@ export default function RrppPage() {
               </div>
             </div>
           </div>
-        </div>        </div>
+        </div>
       </main>
     </div>
   );
