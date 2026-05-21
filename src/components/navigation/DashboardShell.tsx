@@ -95,20 +95,7 @@ const router = useRouter();
   }
 }, [authLoading, user, profile, pathname, router]);
 
-if (authLoading) {
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
-      Cargando...
-    </div>
-  );
-}
 
-if (!user || !profile) {
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
-      Cargando...
-    </div>
-  );
 }
   const credits = Number(liveCredits ?? 0);
 
@@ -397,7 +384,13 @@ if (!user || !profile) {
     touchStartXRef.current = null;
     touchEndXRef.current = null;
   }
-
+  if (authLoading || !user || !profile) {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
+      Cargando...
+    </div>
+  );
+}
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#050507] pb-24 text-white">
       <style jsx global>{`
