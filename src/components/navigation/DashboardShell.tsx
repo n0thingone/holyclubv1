@@ -69,8 +69,8 @@ export default function DashboardShell({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
- const { profile, user, signOut, loading: authLoading } = useAuth();
-const router = useRouter();
+  const { profile, user, signOut, loading: authLoading } = useAuth();
+  const router = useRouter();
   const supabase = useMemo(() => getSupabaseClient(), []);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -86,17 +86,16 @@ const router = useRouter();
   const touchStartXRef = useRef<number | null>(null);
   const touchEndXRef = useRef<number | null>(null);
  
+
   useEffect(() => {
-  if (authLoading) return;
+    if (authLoading) return;
 
-  if (!user || !profile) {
-    const redirectTo = pathname || "/dashboard/puntos/home";
-    router.replace(`/login?redirect=${encodeURIComponent(redirectTo)}`);
-  }
-}, [authLoading, user, profile, pathname, router]);
+    if (!user || !profile) {
+      const redirectTo = pathname || "/dashboard/puntos/home";
+      router.replace(`/login?redirect=${encodeURIComponent(redirectTo)}`);
+    }
+  }, [authLoading, user, profile, pathname, router]);
 
-
-}
   const credits = Number(liveCredits ?? 0);
 
   useEffect(() => {
@@ -385,12 +384,12 @@ const router = useRouter();
     touchEndXRef.current = null;
   }
   if (authLoading || !user || !profile) {
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
-      Cargando...
-    </div>
-  );
-}
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
+        Cargando...
+      </div>
+    );
+  }
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#050507] pb-24 text-white">
       <style jsx global>{`
@@ -747,10 +746,10 @@ const router = useRouter();
         </>
       )}
 
-<div className="pt-[74px] transition-all duration-300">
-  {children}
-</div>
-<InstallPrompt />
+      <div className="pt-[74px] transition-all duration-300">
+        {children}
+      </div>
+      <InstallPrompt />
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-fuchsia-500/20 bg-[#12041b]/90 backdrop-blur-xl">
         <div className="grid grid-cols-5 px-2 py-2">
           {bottomNavItems.map((item) => {
