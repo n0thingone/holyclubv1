@@ -535,7 +535,6 @@ export default function RrppPage() {
             {storyEventImageUrl && (
               <img
                 src={storyEventImageUrl}
-                crossOrigin="anonymous"
                 alt="Evento HOLY"
                 style={{
                   position: "absolute",
