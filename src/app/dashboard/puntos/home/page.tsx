@@ -362,17 +362,18 @@ export default function PuntosHomePage() {
     async function loadHomeData() {
       setLoading(true);
 
-      const { data: rrppData, error: rrppError } = await supabase
-        .from("rrpp_profiles")
-        .select(`
-          slug,
-          profiles (
-            id,
-            full_name,
-            email
-          )
-        `)
-        .not("slug", "is", null);
+  const { data: rrppData, error: rrppError } = await supabase
+  .from("rrpp_profiles")
+  .select(`
+    slug,
+    profiles (
+      id,
+      full_name,
+      email
+    )
+  `)
+  .eq("active", true)
+  .not("slug", "is", null);
 
       if (rrppError) {
         console.error("Error cargando RRPP:", rrppError);
