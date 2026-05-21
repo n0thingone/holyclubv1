@@ -149,8 +149,6 @@ export default function RrppPage() {
 
     async function loadStoryImageAsBase64() {
       try {
-        console.log("CARGANDO IMAGEN HISTORIA:", storyEventImageUrl);
-
         const response = await fetch(storyEventImageUrl, {
           cache: "no-store",
         });
@@ -164,15 +162,12 @@ export default function RrppPage() {
 
         reader.onloadend = () => {
           if (!cancelled) {
-            const result = String(reader.result || "");
-            console.log("BASE64 LISTO:", !!result, result.slice(0, 40));
-            setStoryImageDataUrl(result);
+            setStoryImageDataUrl(String(reader.result || ""));
           }
         };
 
         reader.onerror = () => {
           if (!cancelled) {
-            console.error("Error leyendo imagen como base64.");
             setStoryImageDataUrl("");
           }
         };
@@ -224,17 +219,13 @@ export default function RrppPage() {
     try {
       setGenerating(true);
 
-      console.log("GENERANDO HISTORIA");
-      console.log("URL EVENTO:", storyEventImageUrl);
-      console.log("BASE64 READY:", !!storyImageDataUrl, storyImageDataUrl.slice(0, 40));
-
-      if (!storyImageDataUrl) {
+      if (storyEventImageUrl && !storyImageDataUrl) {
         alert("La imagen del evento todavía está cargando. Esperá 2 segundos y probá de nuevo.");
         setGenerating(false);
         return;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await new Promise((resolve) => setTimeout(resolve, 900));
 
       const dataUrl = await toPng(storyRef.current, {
         cacheBust: true,
@@ -342,13 +333,13 @@ export default function RrppPage() {
 
               <button
                 onClick={generateStory}
-                disabled={generating || !storyImageDataUrl}
+                disabled={generating || (!!storyEventImageUrl && !storyImageDataUrl)}
                 className="holy-btn-secondary py-3 text-xs disabled:opacity-60"
               >
                 <ImageIcon className="w-3.5 h-3.5 inline mr-1.5" />
                 {generating
                   ? "GENERANDO..."
-                  : !storyImageDataUrl
+                  : storyEventImageUrl && !storyImageDataUrl
                   ? "CARGANDO IMAGEN..."
                   : "GENERAR HISTORIA"}
               </button>
@@ -608,17 +599,17 @@ export default function RrppPage() {
             }}
           >
 {storyImageDataUrl && (
-  <div
+              <div
     style={{
-      position: "absolute",
-      inset: -40,
-      backgroundImage: `url("${storyImageDataUrl}")`,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-      backgroundRepeat: "no-repeat",
-      opacity: 0.75,
-      filter: "blur(12px) saturate(1.2) contrast(1.1)",
-      transform: "scale(1.08)",
+                  position: "absolute",
+                  inset: -54,
+                  backgroundImage: `url("${storyImageDataUrl}")`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundRepeat: "no-repeat",
+                  opacity: 0.92,
+                  filter: "blur(10px) saturate(1.18) contrast(1.08) brightness(0.95)",
+                  transform: "scale(1.08)",
     }}
   />
 )}
@@ -628,7 +619,7 @@ export default function RrppPage() {
                 position: "absolute",
                 inset: 0,
                 background:
-                  "linear-gradient(180deg, rgba(5,5,7,0.45) 0%, rgba(10,3,16,0.45) 48%, rgba(5,5,7,0.68) 100%), radial-gradient(circle at 20% 20%, rgba(217,70,239,0.24), transparent 22%), radial-gradient(circle at 80% 18%, rgba(168,85,247,0.20), transparent 18%), radial-gradient(circle at 50% 80%, rgba(217,70,239,0.16), transparent 28%)",
+                  "linear-gradient(180deg, rgba(5,5,7,0.10) 0%, rgba(10,3,16,0.25) 48%, rgba(5,5,7,0.45) 100%), radial-gradient(circle at 20% 20%, rgba(217,70,239,0.18), transparent 22%), radial-gradient(circle at 80% 18%, rgba(168,85,247,0.16), transparent 18%), radial-gradient(circle at 50% 80%, rgba(217,70,239,0.12), transparent 28%)",
               }}
             />
 
@@ -637,11 +628,11 @@ export default function RrppPage() {
                 width: 930,
                 height: 1680,
                 borderRadius: 56,
-                padding: 4,
+                padding: 3,
                 background:
-                  "linear-gradient(135deg, rgba(244,114,182,0.95) 0%, rgba(217,70,239,0.92) 38%, rgba(168,85,247,0.92) 72%, rgba(244,114,182,0.95) 100%)",
+                  "linear-gradient(135deg, rgba(244,114,182,0.95) 0%, rgba(217,70,239,0.90) 38%, rgba(168,85,247,0.90) 72%, rgba(244,114,182,0.95) 100%)",
                 boxShadow:
-                  "0 0 90px rgba(217,70,239,0.22), inset 0 0 24px rgba(255,255,255,0.12)",
+                  "0 0 120px rgba(217,70,239,0.35), inset 0 0 30px rgba(255,255,255,0.18)",
                 position: "relative",
               }}
             >
@@ -661,9 +652,8 @@ export default function RrppPage() {
                   height: "100%",
                   borderRadius: 52,
                   background:
-                  background:
-  "linear-gradient(180deg, rgba(9,9,11,0.34) 0%, rgba(20,6,30,0.42) 58%, rgba(7,7,10,0.62) 100%)",
-backdropFilter: "blur(1px)",
+                    "linear-gradient(180deg, rgba(9,9,11,0.18) 0%, rgba(20,6,30,0.22) 58%, rgba(7,7,10,0.35) 100%)",
+                  backdropFilter: "blur(1px)",
                   padding: "72px 62px 62px",
                   display: "flex",
                   flexDirection: "column",
@@ -805,7 +795,7 @@ backdropFilter: "blur(1px)",
                       alignSelf: "flex-start",
                       padding: "18px 28px",
                       borderRadius: 999,
-                      background: "rgba(255,255,255,0.07)",
+                      background: "rgba(0,0,0,0.24)",
                       border: "1px solid rgba(255,255,255,0.12)",
                       color: "#f5d0fe",
                       fontSize: 30,
@@ -896,7 +886,7 @@ backdropFilter: "blur(1px)",
                     borderRadius: 36,
                     padding: "34px 30px",
                     background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.035))",
+                      "linear-gradient(180deg, rgba(0,0,0,0.24), rgba(0,0,0,0.18))",
                     border: "1px solid rgba(255,255,255,0.12)",
                     boxShadow:
                       "0 0 60px rgba(217,70,239,0.10), inset 0 0 20px rgba(255,255,255,0.03)",
