@@ -11,6 +11,8 @@ import {
   Lock,
   RefreshCw,
   Sparkles,
+  Image as ImageIcon,
+  X,
 } from "lucide-react";
 
 type EventRow = {
@@ -27,6 +29,7 @@ type EventRow = {
   status: string | null;
   created_at: string | null;
   closed_at?: string | null;
+  event_image_url?: string | null;
 };
 
 type FormState = {
@@ -52,6 +55,8 @@ export default function AdminEventosPage() {
   const [saving, setSaving] = useState(false);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
+  const [eventImageFile, setEventImageFile] = useState<File | null>(null);
+  const [eventImagePreview, setEventImagePreview] = useState<string>("");
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [userRole, setUserRole] = useState("");
@@ -120,7 +125,7 @@ export default function AdminEventosPage() {
     const { data, error } = await supabase
       .from("events")
       .select(
-        "id, name, event_date, start_time, end_time, registration_until, qr_entry_until, event_end_at, is_active, is_closed, status, created_at, closed_at"
+        "id, name, event_date, start_time, end_time, registration_until, qr_entry_until, event_end_at, event_image_url, is_active, is_closed, status, created_at, closed_at"
       )
       .order("created_at", { ascending: false });
 
@@ -206,6 +211,51 @@ export default function AdminEventosPage() {
     setErrorMessage("");
   }
 
+
+  function handleImageChange(file: File | null) {
+    setEventImageFile(file);
+
+    if (!file) {
+      setEventImagePreview("");
+      return;
+    }
+
+    setEventImagePreview(URL.createObjectURL(file));
+  }
+
+  async function uploadEventImage() {
+    if (!eventImageFile) return null;
+
+    const extension = eventImageFile.name.split(".").pop() || "jpg";
+    const safeName = form.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+    const filePath = `events/${Date.now()}-${safeName || "evento"}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("event-images")
+      .upload(filePath, eventImageFile, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(
+        uploadError.message ||
+          "No se pudo subir la imagen. Revisá el bucket event-images."
+      );
+    }
+
+    const { data } = supabase.storage
+      .from("event-images")
+      .getPublicUrl(filePath);
+
+    return data.publicUrl || null;
+  }
+
   async function handleCreateEvent() {
     resetMessages();
 
@@ -284,6 +334,16 @@ export default function AdminEventosPage() {
 
     setSaving(true);
 
+    let eventImageUrl: string | null = null;
+
+    try {
+      eventImageUrl = await uploadEventImage();
+    } catch (error: any) {
+      setErrorMessage(error?.message || "No se pudo subir la imagen del evento.");
+      setSaving(false);
+      return;
+    }
+
     const eventStartIso = toIso(form.event_start);
     const eventEndIso = toIso(form.event_end);
     const registrationUntilIso = toIso(form.registration_until);
@@ -306,6 +366,7 @@ export default function AdminEventosPage() {
       registration_until: registrationUntilIso,
       qr_entry_until: qrEntryUntilIso,
       event_end_at: eventEndIso,
+      event_image_url: eventImageUrl,
 
       is_active: false,
       is_closed: false,
@@ -325,6 +386,8 @@ export default function AdminEventosPage() {
 
     setMessage("Evento creado correctamente.");
     setForm(initialForm);
+    setEventImageFile(null);
+    setEventImagePreview("");
     await loadEvents();
     setSaving(false);
   }
@@ -478,6 +541,48 @@ export default function AdminEventosPage() {
                 />
               </label>
 
+              <label className="block sm:col-span-2">
+                <span className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-white/50">
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  Imagen del evento / historia
+                </span>
+
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      handleImageChange(e.target.files?.[0] ?? null)
+                    }
+                    className="block w-full text-sm text-white/70 file:mr-4 file:rounded-xl file:border-0 file:bg-fuchsia-500 file:px-4 file:py-2 file:text-sm file:font-black file:text-white hover:file:bg-fuchsia-400"
+                  />
+
+                  {eventImagePreview && (
+                    <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                      <div className="relative aspect-[16/9] w-full">
+                        <img
+                          src={eventImagePreview}
+                          alt="Preview evento"
+                          className="h-full w-full object-cover"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => handleImageChange(null)}
+                          className="absolute right-3 top-3 rounded-full bg-black/70 p-2 text-white transition hover:bg-red-500"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="mt-2 text-xs text-white/45">
+                    Esta imagen después la toma el RRPP Panel para generar la historia.
+                  </p>
+                </div>
+              </label>
+
               <label className="block">
                 <span className="mb-2 block text-xs font-bold uppercase tracking-[0.2em] text-white/50">
                   Inicio del evento
@@ -559,7 +664,11 @@ export default function AdminEventosPage() {
               </button>
 
               <button
-                onClick={() => setForm(initialForm)}
+                onClick={() => {
+                  setForm(initialForm);
+                  setEventImageFile(null);
+                  setEventImagePreview("");
+                }}
                 disabled={saving}
                 className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white/80 transition hover:bg-white/10 disabled:opacity-60"
               >
@@ -583,6 +692,16 @@ export default function AdminEventosPage() {
                 <div className="mt-2 text-2xl font-black text-white">
                   {activeEvent.name || "Sin nombre"}
                 </div>
+
+                {activeEvent.event_image_url && (
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/40">
+                    <img
+                      src={activeEvent.event_image_url}
+                      alt={activeEvent.name || "Imagen evento"}
+                      className="aspect-[16/9] w-full object-cover"
+                    />
+                  </div>
+                )}
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
@@ -672,7 +791,15 @@ export default function AdminEventosPage() {
                     className="rounded-3xl border border-white/10 bg-black/25 p-4"
                   >
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                      <div className="min-w-0">
+                      {event.event_image_url && (
+                        <img
+                          src={event.event_image_url}
+                          alt={event.name || "Evento"}
+                          className="h-16 w-24 rounded-2xl border border-white/10 object-cover"
+                        />
+                      )}
+
+                      <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="truncate text-base font-black text-white">
                             {event.name || "Sin nombre"}

@@ -34,6 +34,7 @@ export default function RrppPage() {
   const [showGuests, setShowGuests] = useState(false);
   const [guests, setGuests] = useState<GuestRegistration[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [eventImageUrl, setEventImageUrl] = useState("");
 
   const storyRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +81,29 @@ export default function RrppPage() {
   }, [showGuests, rrpp, event, supabase]);
 
   useEffect(() => {
+    if (!event?.id) {
+      setEventImageUrl("");
+      return;
+    }
+
+    const imageFromHook = (event as any)?.event_image_url;
+
+    if (imageFromHook) {
+      setEventImageUrl(imageFromHook);
+      return;
+    }
+
+    supabase
+      .from("events")
+      .select("event_image_url")
+      .eq("id", event.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setEventImageUrl((data as any)?.event_image_url || "");
+      });
+  }, [event, supabase]);
+
+  useEffect(() => {
     if (!rrpp || !event) return;
 
     const ch = supabase
@@ -112,6 +136,7 @@ export default function RrppPage() {
 
   const appUrl = typeof window !== "undefined" ? window.location.origin : "";
   const myLink = rrpp ? `${appUrl}/lista/${rrpp.slug}` : "";
+  const storyEventImageUrl = eventImageUrl || (event as any)?.event_image_url || "";
   const bottle = stats.rewards.find((r) => r.reward_type === "bottle");
   const trigger = bottle?.trigger_count ?? 35;
   const pct = Math.min((stats.checkedIn / trigger) * 100, 100);
@@ -507,12 +532,29 @@ export default function RrppPage() {
               overflow: "hidden",
             }}
           >
+            {storyEventImageUrl && (
+              <img
+                src={storyEventImageUrl}
+                crossOrigin="anonymous"
+                alt="Evento HOLY"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  opacity: 0.42,
+                  filter: "saturate(1.1) contrast(1.08)",
+                }}
+              />
+            )}
+
             <div
               style={{
                 position: "absolute",
                 inset: 0,
                 background:
-                  "radial-gradient(circle at 20% 20%, rgba(217,70,239,0.20), transparent 22%), radial-gradient(circle at 80% 18%, rgba(168,85,247,0.18), transparent 18%), radial-gradient(circle at 50% 80%, rgba(217,70,239,0.12), transparent 28%)",
+                  "linear-gradient(180deg, rgba(5,5,7,0.45) 0%, rgba(10,3,16,0.78) 48%, rgba(5,5,7,0.94) 100%), radial-gradient(circle at 20% 20%, rgba(217,70,239,0.24), transparent 22%), radial-gradient(circle at 80% 18%, rgba(168,85,247,0.20), transparent 18%), radial-gradient(circle at 50% 80%, rgba(217,70,239,0.16), transparent 28%)",
               }}
             />
 
@@ -545,7 +587,7 @@ export default function RrppPage() {
                   height: "100%",
                   borderRadius: 52,
                   background:
-                    "linear-gradient(180deg, rgba(9,9,11,0.96) 0%, rgba(20,6,30,0.96) 58%, rgba(7,7,10,0.98) 100%)",
+                    "linear-gradient(180deg, rgba(9,9,11,0.76) 0%, rgba(20,6,30,0.82) 58%, rgba(7,7,10,0.94) 100%)",
                   padding: "72px 62px 62px",
                   display: "flex",
                   flexDirection: "column",
