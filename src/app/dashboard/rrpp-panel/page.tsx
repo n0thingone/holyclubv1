@@ -631,7 +631,7 @@ export default function RrppPage() {
                 position: "absolute",
                 inset: 0,
                 background:
-                  "linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(10,2,16,0.22) 42%, rgba(0,0,0,0.48) 100%), radial-gradient(circle at 12% 10%, rgba(244,63,94,0.22), transparent 24%), radial-gradient(circle at 85% 18%, rgba(217,70,239,0.20), transparent 28%), radial-gradient(circle at 50% 96%, rgba(168,85,247,0.28), transparent 34%)",
+                  "linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(10,2,16,0.5) 42%, rgba(0,0,0,0.20) 100%), radial-gradient(circle at 12% 10%, rgba(244,63,94,0.22), transparent 24%), radial-gradient(circle at 85% 18%, rgba(217,70,239,0.20), transparent 28%), radial-gradient(circle at 50% 96%, rgba(168,85,247,0.28), transparent 34%)",
               }}
             />
 
@@ -674,8 +674,8 @@ export default function RrppPage() {
                   width: "100%",
                   height: "100%",
                   borderRadius: 62,
-                  background:
-                    "linear-gradient(180deg, rgba(255,255,255,0.075) 0%, rgba(217,70,239,0.055) 42%, rgba(0,0,0,0.18) 100%)",
+                background:
+  "linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(217,70,239,0.015) 42%, rgba(0,0,0,0.08) 100%)",
                   padding: "72px 62px 58px",
                   display: "flex",
                   flexDirection: "column",
