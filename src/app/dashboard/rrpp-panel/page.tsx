@@ -588,7 +588,7 @@ export default function RrppPage() {
               width: 1080,
               height: 1920,
               background:
-                "radial-gradient(circle at 50% 50%, rgba(217,70,239,0.16), transparent 44%), radial-gradient(circle at 20% 18%, rgba(244,63,94,0.13), transparent 30%), linear-gradient(180deg, #050507 0%, #0b0210 52%, #050507 100%)",
+                "radial-gradient(circle at 50% 50%, rgba(217,70,239,0.10), transparent 42%), linear-gradient(180deg, #050507 0%, #0b0210 52%, #050507 100%)",
               color: "white",
               display: "flex",
               alignItems: "center",
@@ -603,7 +603,7 @@ export default function RrppPage() {
                 position: "absolute",
                 inset: 0,
                 background:
-                  "radial-gradient(circle at 50% 12%, rgba(217,70,239,0.14), transparent 26%), radial-gradient(circle at 50% 92%, rgba(168,85,247,0.16), transparent 32%)",
+                  "radial-gradient(circle at 50% 12%, rgba(217,70,239,0.10), transparent 24%), radial-gradient(circle at 50% 92%, rgba(168,85,247,0.10), transparent 30%)",
               }}
             />
 
@@ -614,9 +614,9 @@ export default function RrppPage() {
                 borderRadius: 64,
                 padding: 2,
                 background:
-                  "linear-gradient(135deg, rgba(244,114,182,0.42), rgba(217,70,239,0.48), rgba(168,85,247,0.42))",
+                  "linear-gradient(135deg, rgba(244,114,182,0.18), rgba(217,70,239,0.22), rgba(168,85,247,0.18))",
                 boxShadow:
-                  "0 0 95px rgba(217,70,239,0.36), 0 0 44px rgba(244,63,94,0.16)",
+                  "0 0 70px rgba(217,70,239,0.24), 0 0 24px rgba(244,63,94,0.07)",
                 position: "relative",
                 overflow: "hidden",
               }}
@@ -625,14 +625,14 @@ export default function RrppPage() {
                 <div
                   style={{
                     position: "absolute",
-                    inset: -28,
+                    inset: -56,
                     backgroundImage: `url("${storyImageDataUrl}")`,
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                     backgroundRepeat: "no-repeat",
                     filter:
-                      "blur(6px) saturate(1.12) contrast(1.05) brightness(0.58)",
-                    transform: "scale(1.04)",
+                      "blur(3px) saturate(1.10) contrast(1.06) brightness(0.48)",
+                    transform: "scale(1.12)",
                   }}
                 />
               )}
@@ -653,7 +653,7 @@ export default function RrppPage() {
                   position: "absolute",
                   inset: 0,
                   background:
-                    "linear-gradient(180deg, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0.20) 45%, rgba(0,0,0,0.52) 100%)",
+                    "linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.12) 45%, rgba(0,0,0,0.42) 100%)",
                 }}
               />
 
@@ -662,9 +662,9 @@ export default function RrppPage() {
                   position: "absolute",
                   inset: 0,
                   borderRadius: 64,
-                  border: "2px solid rgba(255,255,255,0.16)",
+                  border: "2px solid rgba(255,255,255,0.12)",
                   boxShadow:
-                    "inset 0 0 34px rgba(255,255,255,0.045), inset 0 0 80px rgba(217,70,239,0.05)",
+                    "inset 0 0 26px rgba(255,255,255,0.025), inset 0 0 34px rgba(217,70,239,0.025)",
                 }}
               />
 
@@ -695,10 +695,10 @@ export default function RrppPage() {
                       padding: "18px 28px",
                       borderRadius: 999,
                       background:
-                        "linear-gradient(180deg, rgba(0,0,0,0.46), rgba(0,0,0,0.24))",
-                      border: "1px solid rgba(255,255,255,0.17)",
+                        "linear-gradient(180deg, rgba(0,0,0,0.50), rgba(0,0,0,0.28))",
+                      border: "1px solid rgba(255,255,255,0.18)",
                       boxShadow:
-                        "0 0 34px rgba(217,70,239,0.22), inset 0 0 20px rgba(255,255,255,0.035)",
+                        "0 0 34px rgba(217,70,239,0.14), inset 0 0 20px rgba(255,255,255,0.03)",
                     }}
                   >
                     <div
@@ -714,7 +714,7 @@ export default function RrppPage() {
                         color: "#09090b",
                         fontSize: 30,
                         fontWeight: 900,
-                        boxShadow: "0 0 30px rgba(217,70,239,0.48)",
+                        boxShadow: "0 0 30px rgba(217,70,239,0.46)",
                       }}
                     >
                       H
@@ -754,14 +754,14 @@ export default function RrppPage() {
                       padding: "16px 26px",
                       borderRadius: 999,
                       background:
-                        "linear-gradient(180deg, rgba(217,70,239,0.22), rgba(0,0,0,0.22))",
+                        "linear-gradient(180deg, rgba(217,70,239,0.14), rgba(0,0,0,0.28))",
                       border: "1px solid rgba(255,255,255,0.14)",
                       color: "#ffffff",
                       fontSize: 17,
                       fontWeight: 900,
                       letterSpacing: "0.18em",
                       textTransform: "uppercase",
-                      boxShadow: "0 0 28px rgba(217,70,239,0.18)",
+                      boxShadow: "0 0 26px rgba(217,70,239,0.16)",
                       textShadow: "0 3px 14px rgba(0,0,0,0.8)",
                     }}
                   >
@@ -774,7 +774,7 @@ export default function RrppPage() {
                     display: "flex",
                     flexDirection: "column",
                     gap: 24,
-                    marginTop: 120,
+                    marginTop: 115,
                   }}
                 >
                   <div
@@ -799,11 +799,13 @@ export default function RrppPage() {
                     style={{
                       display: "inline-flex",
                       alignSelf: "flex-start",
-                      padding: "18px 30px",
+                      minWidth: 330,
+                      justifyContent: "center",
+                      padding: "18px 34px",
                       borderRadius: 999,
                       background:
-                        "linear-gradient(180deg, rgba(0,0,0,0.50), rgba(0,0,0,0.28))",
-                      border: "1px solid rgba(255,255,255,0.16)",
+                        "linear-gradient(180deg, rgba(0,0,0,0.50), rgba(0,0,0,0.30))",
+                      border: "1px solid rgba(255,255,255,0.18)",
                       color: "#ffffff",
                       fontSize: 31,
                       fontWeight: 900,
@@ -828,14 +830,14 @@ export default function RrppPage() {
                         padding: "16px 26px",
                         borderRadius: 999,
                         background:
-                          "linear-gradient(180deg, rgba(217,70,239,0.20), rgba(0,0,0,0.26))",
-                        border: "1px solid rgba(240,171,252,0.42)",
+                          "linear-gradient(180deg, rgba(217,70,239,0.12), rgba(0,0,0,0.30))",
+                        border: "1px solid rgba(240,171,252,0.40)",
                         color: "#ffffff",
                         fontSize: 22,
                         fontWeight: 900,
                         textTransform: "uppercase",
                         letterSpacing: "0.075em",
-                        boxShadow: "0 0 26px rgba(217,70,239,0.22)",
+                        boxShadow: "0 0 24px rgba(217,70,239,0.12)",
                         textShadow: "0 4px 16px rgba(0,0,0,0.8)",
                       }}
                     >
@@ -847,14 +849,14 @@ export default function RrppPage() {
                         padding: "16px 26px",
                         borderRadius: 999,
                         background:
-                          "linear-gradient(180deg, rgba(34,197,94,0.18), rgba(0,0,0,0.26))",
-                        border: "1px solid rgba(74,222,128,0.46)",
+                          "linear-gradient(180deg, rgba(34,197,94,0.13), rgba(0,0,0,0.30))",
+                        border: "1px solid rgba(74,222,128,0.42)",
                         color: "#86efac",
                         fontSize: 22,
                         fontWeight: 900,
                         textTransform: "uppercase",
                         letterSpacing: "0.075em",
-                        boxShadow: "0 0 26px rgba(34,197,94,0.18)",
+                        boxShadow: "0 0 24px rgba(34,197,94,0.13)",
                         textShadow: "0 4px 16px rgba(0,0,0,0.8)",
                       }}
                     >
@@ -867,14 +869,14 @@ export default function RrppPage() {
                           padding: "16px 26px",
                           borderRadius: 999,
                           background:
-                            "linear-gradient(180deg, rgba(59,130,246,0.18), rgba(0,0,0,0.26))",
-                          border: "1px solid rgba(96,165,250,0.46)",
+                            "linear-gradient(180deg, rgba(59,130,246,0.13), rgba(0,0,0,0.30))",
+                          border: "1px solid rgba(96,165,250,0.42)",
                           color: "#93c5fd",
                           fontSize: 22,
                           fontWeight: 900,
                           letterSpacing: "0.065em",
                           textTransform: "uppercase",
-                          boxShadow: "0 0 26px rgba(59,130,246,0.18)",
+                          boxShadow: "0 0 24px rgba(59,130,246,0.13)",
                           textShadow: "0 4px 16px rgba(0,0,0,0.8)",
                         }}
                       >
@@ -905,9 +907,9 @@ export default function RrppPage() {
                     padding: "34px 30px",
                     background:
                       "linear-gradient(180deg, rgba(0,0,0,0.42), rgba(0,0,0,0.30))",
-                    border: "1px solid rgba(240,171,252,0.26)",
+                    border: "1px solid rgba(240,171,252,0.24)",
                     boxShadow:
-                      "0 0 48px rgba(217,70,239,0.16), inset 0 0 24px rgba(255,255,255,0.025)",
+                      "0 0 42px rgba(217,70,239,0.14), inset 0 0 22px rgba(255,255,255,0.022)",
                   }}
                 >
                   <div
@@ -921,7 +923,7 @@ export default function RrppPage() {
                       textShadow: "0 3px 14px rgba(0,0,0,0.8)",
                     }}
                   >
-                    Entrá desde mi link
+                    Acá dejá tu link
                   </div>
 
                   <div
@@ -929,7 +931,7 @@ export default function RrppPage() {
                       borderRadius: 22,
                       padding: "22px 24px",
                       background: "rgba(0,0,0,0.56)",
-                      border: "1px solid rgba(217,70,239,0.24)",
+                      border: "1px solid rgba(217,70,239,0.22)",
                       boxShadow: "inset 0 0 20px rgba(0,0,0,0.22)",
                     }}
                   >
@@ -943,7 +945,7 @@ export default function RrppPage() {
                         textShadow: "0 3px 18px rgba(0,0,0,0.85)",
                       }}
                     >
-                      🔗 {myLink}
+                      🔗 Pegá el sticker de link de Instagram acá
                     </div>
                   </div>
                 </div>
