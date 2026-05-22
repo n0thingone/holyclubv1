@@ -315,8 +315,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentSession?.user ?? null);
 
         if (currentSession?.user) {
-         syncUserProfile(currentSession.user)
-  .catch(console.error);
+          await syncUserProfile(currentSession.user);
         } else {
           cleanupPointsSubscription();
           setProfile(null);
@@ -351,15 +350,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // MODO EVENTO:
-      // No volvemos a bloquear toda la app mientras se carga perfil/puntos.
-      // La sesión ya existe; el profile se sincroniza en segundo plano.
-      setLoading(false);
+      setLoading(true);
 
       setTimeout(() => {
-        syncUserProfile(currentSession.user).catch((err) => {
-          console.error("Error syncUserProfile onAuthStateChange:", err);
-        });
+        syncUserProfile(currentSession.user)
+          .catch((err) => {
+            console.error("Error syncUserProfile onAuthStateChange:", err);
+          })
+          .finally(() => {
+            setLoading(false);
+          });
       }, 0);
     });
 

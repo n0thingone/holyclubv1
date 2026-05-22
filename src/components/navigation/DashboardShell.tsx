@@ -3,7 +3,7 @@
 import InstallPrompt from "@/components/pwa/InstallPrompt";
 import { ReactNode, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams, useRouter } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Home,
   Gift,
@@ -69,8 +69,7 @@ export default function DashboardShell({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { profile, user, signOut, loading: authLoading } = useAuth();
-  const router = useRouter();
+  const { profile, user, signOut } = useAuth();
   const supabase = useMemo(() => getSupabaseClient(), []);
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -85,19 +84,6 @@ export default function DashboardShell({
   const headerRef = useRef<HTMLDivElement | null>(null);
   const touchStartXRef = useRef<number | null>(null);
   const touchEndXRef = useRef<number | null>(null);
- 
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    // MODO EVENTO / EMERGENCIA:
-    // No mandamos al login por falta de profile, porque el profile puede tardar.
-    // Solo redirigimos si realmente no hay user/sesión.
-    if (!user) {
-      const redirectTo = pathname || "/dashboard/puntos/home";
-      router.replace(`/login?redirect=${encodeURIComponent(redirectTo)}`);
-    }
-  }, [authLoading, user, pathname, router]);
 
   const credits = Number(liveCredits ?? 0);
 
@@ -146,8 +132,7 @@ export default function DashboardShell({
     void loadFreeBoxes();
   }, [user?.id, profile?.id, menuOpen, supabase]);
 
-  // Fallback seguro: si el profile tarda, entra como cliente hasta que cargue.
-  const role = String((profile as any)?.role || "cliente").toLowerCase();
+  const role = String((profile as any)?.role || "").toLowerCase();
 
   const isAdmin =
     role === "admin" || role === "cashier" || role === "cajero";
@@ -387,13 +372,7 @@ export default function DashboardShell({
     touchStartXRef.current = null;
     touchEndXRef.current = null;
   }
-  if (authLoading || !user) {
-    return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
-        Cargando...
-      </div>
-    );
-  }
+
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#050507] pb-24 text-white">
       <style jsx global>{`
@@ -750,10 +729,10 @@ export default function DashboardShell({
         </>
       )}
 
-      <div className="pt-[74px] transition-all duration-300">
-        {children}
-      </div>
-      <InstallPrompt />
+<div className="pt-[74px] transition-all duration-300">
+  {children}
+</div>
+<InstallPrompt />
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-fuchsia-500/20 bg-[#12041b]/90 backdrop-blur-xl">
         <div className="grid grid-cols-5 px-2 py-2">
           {bottomNavItems.map((item) => {
