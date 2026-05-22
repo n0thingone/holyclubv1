@@ -353,7 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // MODO EVENTO:
       // No volvemos a bloquear toda la app mientras se carga perfil/puntos.
-      // La sesión ya existe; el profile se sincroniza en segundo plano.
+      // La sesiÃ³n ya existe; el profile se sincroniza en segundo plano.
       setLoading(false);
 
       setTimeout(() => {
