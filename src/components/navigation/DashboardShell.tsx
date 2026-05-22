@@ -90,11 +90,14 @@ export default function DashboardShell({
   useEffect(() => {
     if (authLoading) return;
 
-    if (!user || !profile) {
+    // MODO EVENTO / EMERGENCIA:
+    // No mandamos al login por falta de profile, porque el profile puede tardar.
+    // Solo redirigimos si realmente no hay user/sesión.
+    if (!user) {
       const redirectTo = pathname || "/dashboard/puntos/home";
       router.replace(`/login?redirect=${encodeURIComponent(redirectTo)}`);
     }
-  }, [authLoading, user, profile, pathname, router]);
+  }, [authLoading, user, pathname, router]);
 
   const credits = Number(liveCredits ?? 0);
 
@@ -143,7 +146,8 @@ export default function DashboardShell({
     void loadFreeBoxes();
   }, [user?.id, profile?.id, menuOpen, supabase]);
 
-  const role = String((profile as any)?.role || "").toLowerCase();
+  // Fallback seguro: si el profile tarda, entra como cliente hasta que cargue.
+  const role = String((profile as any)?.role || "cliente").toLowerCase();
 
   const isAdmin =
     role === "admin" || role === "cashier" || role === "cajero";
@@ -383,7 +387,7 @@ export default function DashboardShell({
     touchStartXRef.current = null;
     touchEndXRef.current = null;
   }
-  if (authLoading || !user || !profile) {
+  if (authLoading || !user) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
         Cargando...

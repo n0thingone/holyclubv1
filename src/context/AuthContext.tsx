@@ -315,7 +315,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentSession?.user ?? null);
 
         if (currentSession?.user) {
-          await syncUserProfile(currentSession.user);
+         syncUserProfile(currentSession.user)
+  .catch(console.error);
         } else {
           cleanupPointsSubscription();
           setProfile(null);
