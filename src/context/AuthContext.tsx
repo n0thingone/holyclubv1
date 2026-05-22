@@ -351,16 +351,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setLoading(true);
+      // MODO EVENTO:
+      // No volvemos a bloquear toda la app mientras se carga perfil/puntos.
+      // La sesión ya existe; el profile se sincroniza en segundo plano.
+      setLoading(false);
 
       setTimeout(() => {
-        syncUserProfile(currentSession.user)
-          .catch((err) => {
-            console.error("Error syncUserProfile onAuthStateChange:", err);
-          })
-          .finally(() => {
-            setLoading(false);
-          });
+        syncUserProfile(currentSession.user).catch((err) => {
+          console.error("Error syncUserProfile onAuthStateChange:", err);
+        });
       }, 0);
     });
 
