@@ -16,6 +16,10 @@ export default function LoginPage() {
   const [stageColor, setStageColor] = useState("text-fuchsia-300");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  async function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   async function handleGoogleLogin() {
     try {
       setLoading(true);
@@ -25,40 +29,27 @@ export default function LoginPage() {
         localStorage.removeItem("holy_guest");
       }
 
+      // MODO EVENTO: loader corto y decorativo. No bloqueamos de más.
       const steps = [
-        { text: "Buscando si estás en la lista...", color: "text-white" },
-        { text: "Mmm... ahí estás 👀", color: "text-yellow-300" },
-        { text: "Preparando tu entrada FREE...", color: "text-fuchsia-300" },
-        { text: "Cargando temazos 🔊", color: "text-green-300" },
-        { text: "Guardando lugar en la pista...", color: "text-blue-300" },
-        { text: "A tu novio/a no le va a gustar esto...", color: "text-red-400" },
-        { text: "Dale que ya entras...", color: "text-orange-300" },
-        { text: "Listo, pasá 😈", color: "text-fuchsia-200" },
+        { text: "Preparando acceso...", color: "text-fuchsia-300", ms: 250 },
+        { text: "Buscando tu cuenta...", color: "text-white", ms: 300 },
+        { text: "Dale que ya entrás...", color: "text-orange-300", ms: 300 },
+        { text: "Abriendo Google...", color: "text-green-300", ms: 250 },
       ];
 
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
+      for (const step of steps) {
         setStageText(step.text);
         setStageColor(step.color);
-
-        if (step.text.includes("novio")) {
-          navigator.vibrate?.([50, 30, 50]);
-        }
-
-        await new Promise((r) =>
-          setTimeout(r, i === steps.length - 1 ? 850 : 650)
-        );
+        await sleep(step.ms);
       }
 
-      navigator.vibrate?.([80, 40, 120, 40, 180]);
+      navigator.vibrate?.([50, 30, 80]);
 
       try {
-        await audioRef.current?.play();
+        void audioRef.current?.play();
       } catch {}
 
-      await new Promise((r) => setTimeout(r, 400));
-
-      // 🔥 FIX CLAVE: guardar redirect real
+      // Guardar redirect real ANTES de ir a Google.
       const params = new URLSearchParams(window.location.search);
 
       let redirect =
@@ -66,12 +57,15 @@ export default function LoginPage() {
         params.get("next") ||
         "/dashboard/puntos/home";
 
-      // normalizamos por si viene raro
+      // Evita redirects raros o externos.
       if (!redirect.startsWith("/")) {
         redirect = "/dashboard/puntos/home";
       }
 
       localStorage.setItem("holy_redirect", redirect);
+
+      setStageText("Conectando con Google...");
+      setStageColor("text-cyan-300");
 
       const redirectTo = `${window.location.origin}/auth/callback`;
 
@@ -79,17 +73,16 @@ export default function LoginPage() {
         provider: "google",
         options: {
           redirectTo,
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
+          // IMPORTANTE PARA HOY:
+          // Sacamos prompt: "consent" y access_type: "offline" porque fuerza
+          // consentimiento cada vez y puede hacer más lento/trabado el login.
         },
       });
 
       if (error) throw error;
     } catch (err: any) {
-      console.error(err);
-      setError("Error al iniciar sesión.");
+      console.error("Google login error:", err);
+      setError("Error al iniciar sesión. Probá de nuevo.");
       setLoading(false);
       setStageText("Preparando acceso...");
       setStageColor("text-fuchsia-300");
@@ -143,7 +136,7 @@ export default function LoginPage() {
           >
             <div className="flex items-center justify-center gap-2">
               <Chrome size={18} />
-              {loading ? "Ingresando..." : "Continuar con Google"}
+              {loading ? "Abriendo Google..." : "Continuar con Google"}
             </div>
           </button>
 
@@ -158,9 +151,7 @@ export default function LoginPage() {
             </div>
           </button>
 
-          {error && (
-            <p className="text-center text-sm text-red-400">{error}</p>
-          )}
+          {error && <p className="text-center text-sm text-red-400">{error}</p>}
         </div>
       </div>
 
@@ -174,15 +165,13 @@ export default function LoginPage() {
               <div className="h-10 w-10 animate-spin rounded-full border-2 border-t-white border-fuchsia-400" />
             </div>
 
-            <h2
-              className={`mt-6 font-bold transition-all duration-300 ${
-                stageText.includes("novio")
-                  ? "scale-110 text-2xl text-red-400 drop-shadow-[0_0_12px_rgba(248,113,113,0.55)]"
-                  : `text-xl ${stageColor}`
-              }`}
-            >
+            <h2 className={`mt-6 text-xl font-bold transition-all duration-300 ${stageColor}`}>
               {stageText}
             </h2>
+
+            <p className="mx-auto mt-3 max-w-xs text-xs text-white/45">
+              Si tarda demasiado, cerrá esta pestaña y volvé a intentar.
+            </p>
 
             <div className="mx-auto mt-4 h-2 w-44 overflow-hidden rounded-full bg-white/10">
               <div className="h-full w-2/3 animate-pulse bg-fuchsia-400 shadow-[0_0_20px_rgba(217,70,239,0.55)]" />
