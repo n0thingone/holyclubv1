@@ -12,6 +12,23 @@ export function getSupabaseClient() {
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true,
+          flowType: "pkce",
+          storageKey: "holyclub-auth-v2",
+        },
+        global: {
+          fetch: async (url, options = {}) => {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+
+            try {
+              return await fetch(url, {
+                ...options,
+                signal: controller.signal,
+              });
+            } finally {
+              clearTimeout(timeout);
+            }
+          },
         },
       }
     );
