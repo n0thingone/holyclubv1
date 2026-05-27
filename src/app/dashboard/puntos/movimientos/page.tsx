@@ -535,12 +535,11 @@ const visibleRedemptions = useMemo(() => {
 
       return true;
     })
-.sort(
-  (a, b) =>
-    new Date(b.created_at).getTime() -
-    new Date(a.created_at).getTime()
-);
-    });
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+    );
 }, [redemptions, now]);
 
   return (
