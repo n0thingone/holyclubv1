@@ -277,6 +277,11 @@ export default function DashboardShell({
       icon: CalendarPlus2,
     },
     {
+  href: "/dashboard/online-stats",
+  label: "ONLINE STATS",
+  icon: Trophy,
+},
+    {
       href: "/dashboard/admin/eventos/resumen",
       label: "Resumen evento",
       icon: ClipboardList,
