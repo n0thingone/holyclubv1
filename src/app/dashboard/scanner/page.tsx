@@ -812,276 +812,98 @@ if (xpError) {
   }
 
   const processEntryQr = useCallback(
-    async (rawValue: string, eventId: string, by: string): Promise<EntryScanResult> => {
-      const token = extractRawToken(rawValue);
-      const scannedToken = normalizeScannerToken(rawValue);
-      const tokenVariants = buildTokenVariants(rawValue);
+    async (
+      rawValue: string,
+      eventId: string,
+      by: string
+    ): Promise<EntryScanResult> => {
+      try {
+        // 🔥 GOLD FIRST
+        const tokenVariants = buildTokenVariants(rawValue);
 
-      if (!scannedToken || tokenVariants.length === 0) {
-        return {
-          success: false,
-          result: "invalid_qr",
-          message: "QR inválido o vacío",
-          color: "red",
-        };
-      }
+        const goldResults = await Promise.all(
+          tokenVariants.map((variant) =>
+            supabase
+              .from("gold_qrs")
+              .select("*")
+              .eq("event_id", eventId)
+              .eq("qr_token", variant)
+              .maybeSingle()
+          )
+        );
 
-      let gold: any = null;
-      let goldError: any = null;
+        const gold = goldResults.find((r) => r.data)?.data ?? null;
 
-      // ⚡ FIX SPEED: antes hacía 1 query por variante EN FILA.
-      // Ahora las dispara en paralelo y toma la primera coincidencia.
-      const goldResults = await Promise.all(
-        tokenVariants.map((variant) =>
-          supabase
+        if (gold) {
+          if (
+            gold.status !== "active" ||
+            gold.used_count >= gold.max_uses ||
+            (gold.expires_at &&
+              new Date(gold.expires_at).getTime() < Date.now())
+          ) {
+            return {
+              success: false,
+              result: "used_qr",
+              message: "QR Gold agotado o vencido",
+              color: "red",
+            };
+          }
+
+          await supabase
             .from("gold_qrs")
-            .select("*")
-            .eq("event_id", eventId)
-            .eq("qr_token", variant)
-            .maybeSingle()
-        )
-      );
+            .update({
+              used_count: (gold.used_count || 0) + 1,
+            })
+            .eq("id", gold.id);
 
-      goldError = goldResults.find((r) => r.error)?.error ?? null;
-      gold = goldResults.find((r) => r.data)?.data ?? null;
-
-      if (!gold && !goldError) {
-        const { data: candidates, error: fallbackError } = await supabase
-          .from("gold_qrs")
-          .select("*")
-          .eq("event_id", eventId)
-          .limit(1000);
-
-        if (fallbackError) {
-          goldError = fallbackError;
-        } else {
-          gold = candidates?.find((row: any) =>
-            tokenMatchesDb(row.qr_token || "", rawValue)
-          );
-        }
-      }
-
-      if (goldError) {
-        console.error("Error validando QR Gold:", goldError);
-        return {
-          success: false,
-          result: "invalid_qr",
-          message: "Error validando QR Gold",
-          color: "red",
-        };
-      }
-
-      if (gold) {
-        if (
-          gold.status !== "active" ||
-          gold.used_count >= gold.max_uses ||
-          (gold.expires_at && new Date(gold.expires_at).getTime() < Date.now())
-        ) {
-          await (supabase as any).from("checkins").insert({
+          await supabase.from("checkins").insert({
             event_id: eventId,
             checked_in_by: by,
-            result: "used_qr",
+            result: "gold_entry",
           });
 
           return {
-            success: false,
-            result: "used_qr",
-            message: "QR Gold agotado o vencido",
-            color: "red",
+            success: true,
+            result: "gold_entry",
+            message: gold.title || "Ingreso Gold",
+            color: "gold",
           };
         }
 
-        const { error: goldUpdateError } = await (supabase as any)
-          .from("gold_qrs")
-          .update({ used_count: (gold.used_count || 0) + 1 })
-          .eq("id", gold.id);
+        // ⚡ NUEVO SCANNER FAST
+        const { data, error } = await supabase.rpc(
+          "scan_entry_qr_fast",
+          {
+            p_token: rawValue,
+            p_event_id: eventId,
+            p_checked_in_by: by,
+          }
+        );
 
-        if (goldUpdateError) {
-          console.error("No se pudo actualizar el QR Gold:", goldUpdateError);
+        if (error) {
+          console.error("RPC ERROR:", error);
+
           return {
             success: false,
             result: "invalid_qr",
-            message: "No se pudo actualizar el QR Gold",
+            message: "Error validando QR",
             color: "red",
           };
         }
 
-        await (supabase as any).from("checkins").insert({
-          event_id: eventId,
-          result: "gold_entry",
-          checked_in_by: by,
-        });
-
-        return {
-          success: true,
-          result: "gold_entry",
-          message: gold.title || "Ingreso Gold",
-          color: "gold",
-        };
-      }
-
-      let g: any = null;
-      let guestError: any = null;
-
-      // ⚡ FIX SPEED: búsqueda de lista free en paralelo.
-      const guestResults = await Promise.all(
-        tokenVariants.map((variant) =>
-          supabase
-            .from("guest_registrations")
-            .select("*, rrpp_profiles(display_name)")
-            .eq("event_id", eventId)
-            .eq("qr_token", variant)
-            .maybeSingle()
-        )
-      );
-
-      guestError = guestResults.find((r) => r.error)?.error ?? null;
-      g = guestResults.find((r) => r.data)?.data ?? null;
-
-      if (guestError) {
-        console.error("Error validando invitado:", guestError);
-        return {
-          success: false,
-          result: "invalid_qr",
-          message: "Error validando invitado",
-          color: "red",
-        };
-      }
-
-      if (!g) {
-        const { data: candidates, error: fallbackError } = await supabase
-          .from("guest_registrations")
-          .select(
-            "id, event_id, rrpp_id, user_id, first_name, last_name, qr_token, registration_status, entry_points_awarded, rrpp_profiles(display_name)"
-          )
-          .eq("event_id", eventId)
-          .ilike("qr_token", "HC-%")
-          .limit(1500);
-
-        if (fallbackError) {
-          console.error("Error buscando coincidencia alternativa:", fallbackError);
-          return {
-            success: false,
-            result: "invalid_qr",
-            message: "Error buscando coincidencia alternativa",
-            color: "red",
-          };
-        }
-
-        g =
-          candidates?.find((row) => tokenMatchesDb(row.qr_token || "", rawValue)) ??
-          null;
-      }
-
-      if (!g) {
-        console.log("QR NO ENCONTRADO", {
-          raw: rawValue,
-          extracted: token,
-          normalized: scannedToken,
-          variants: tokenVariants,
-          eventId,
-        });
-
-        await supabase.from("checkins").insert({
-          event_id: eventId,
-          checked_in_by: by,
-          result: "invalid_qr",
-        });
+        return data as EntryScanResult;
+      } catch (err) {
+        console.error("SCAN ERROR:", err);
 
         return {
           success: false,
           result: "invalid_qr",
-          message: "QR no encontrado",
+          message: "Error inesperado",
           color: "red",
         };
       }
-
-      if (g.registration_status === "checked_in") {
-        await supabase.from("checkins").insert({
-          event_id: eventId,
-          registration_id: g.id,
-          rrpp_id: g.rrpp_id,
-          checked_in_by: by,
-          result: "used_qr",
-        });
-
-        return {
-          success: false,
-          result: "used_qr",
-          message: `${g.first_name} ${g.last_name} ya ingresó`,
-          color: "red",
-        };
-      }
-
-      if (!isWithinTime(event?.qr_entry_until ?? null)) {
-        await supabase.from("checkins").insert({
-          event_id: eventId,
-          registration_id: g.id,
-          rrpp_id: g.rrpp_id,
-          checked_in_by: by,
-          result: "expired_qr",
-        });
-
-        return {
-          success: false,
-          result: "expired_qr",
-          message: "Horario de QR finalizado",
-          color: "yellow",
-        };
-      }
-
-      const { error: guestUpdateError } = await supabase
-        .from("guest_registrations")
-        .update({ registration_status: "checked_in" })
-        .eq("id", g.id);
-
-      if (guestUpdateError) {
-        console.error("No se pudo registrar el ingreso:", guestUpdateError);
-        return {
-          success: false,
-          result: "invalid_qr",
-          message: "No se pudo registrar el ingreso",
-          color: "red",
-        };
-      }
-
-      await supabase.from("checkins").insert({
-        event_id: eventId,
-        registration_id: g.id,
-        rrpp_id: g.rrpp_id,
-        checked_in_by: by,
-        result: "valid_entry",
-      });
-      // 🔥 RRPP reward automático (40 ingresos)
-if (g.rrpp_id) {
-  void supabase.rpc("check_rrpp_bottle_reward", {
-    p_event_id: eventId,
-    p_rrpp_id: g.rrpp_id,
-  });
-}
-      // ⚡ FIX SPEED:
-      // No esperamos puntos/XP para mostrar OK en puerta.
-      // El ingreso se confirma y los puntos corren atrás.
-      const expectedClientPoints =
-        g.user_id && !g.entry_points_awarded ? GUEST_ENTRY_POINTS : 0;
-
-      void tryAwardEntryPoints({
-        id: g.id,
-        user_id: g.user_id,
-        entry_points_awarded: g.entry_points_awarded,
-      });
-
-      return {
-        success: true,
-        result: "valid_entry",
-        message: `${g.first_name} ${g.last_name}`,
-        rrppName: g.rrpp_profiles?.display_name,
-        guest: g,
-        color: "green",
-        clientPointsAdded: expectedClientPoints,
-      };
     },
-    [supabase, event?.qr_entry_until]
+    [supabase]
   );
 
   const processBarQr = useCallback(
