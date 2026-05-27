@@ -818,67 +818,14 @@ if (xpError) {
       by: string
     ): Promise<EntryScanResult> => {
       try {
-        // 🔥 GOLD FIRST
-        const tokenVariants = buildTokenVariants(rawValue);
-
-        const goldResults = await Promise.all(
-          tokenVariants.map((variant) =>
-            supabase
-              .from("gold_qrs")
-              .select("*")
-              .eq("event_id", eventId)
-              .eq("qr_token", variant)
-              .maybeSingle()
-          )
-        );
-
-        const gold = goldResults.find((r) => r.data)?.data ?? null;
-
-        if (gold) {
-          if (
-            gold.status !== "active" ||
-            gold.used_count >= gold.max_uses ||
-            (gold.expires_at &&
-              new Date(gold.expires_at).getTime() < Date.now())
-          ) {
-            return {
-              success: false,
-              result: "used_qr",
-              message: "QR Gold agotado o vencido",
-              color: "red",
-            };
-          }
-
-          await supabase
-            .from("gold_qrs")
-            .update({
-              used_count: (gold.used_count || 0) + 1,
-            })
-            .eq("id", gold.id);
-
-          await supabase.from("checkins").insert({
-            event_id: eventId,
-            checked_in_by: by,
-            result: "gold_entry",
-          });
-
-          return {
-            success: true,
-            result: "gold_entry",
-            message: gold.title || "Ingreso Gold",
-            color: "gold",
-          };
-        }
-
-        // ⚡ NUEVO SCANNER FAST
-        const { data, error } = await supabase.rpc(
-          "scan_entry_qr_fast",
-          {
-            p_token: rawValue,
-            p_event_id: eventId,
-            p_checked_in_by: by,
-          }
-        );
+        // ⚡ ENTRADA FAST:
+        // Gold + Lista Free se validan directo en Supabase.
+        // No buscamos Gold en React porque los QR pueden venir como URL completa.
+        const { data, error } = await supabase.rpc("scan_entry_qr_fast", {
+          p_token: rawValue,
+          p_event_id: eventId,
+          p_checked_in_by: by,
+        });
 
         if (error) {
           console.error("RPC ERROR:", error);
@@ -891,7 +838,18 @@ if (xpError) {
           };
         }
 
-        return data as EntryScanResult;
+        const result = data as EntryScanResult;
+
+        if (!result) {
+          return {
+            success: false,
+            result: "invalid_qr",
+            message: "La función no devolvió datos",
+            color: "red",
+          };
+        }
+
+        return result;
       } catch (err) {
         console.error("SCAN ERROR:", err);
 
