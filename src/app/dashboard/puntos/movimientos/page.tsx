@@ -535,14 +535,11 @@ const visibleRedemptions = useMemo(() => {
 
       return true;
     })
-    .sort((a, b) => {
-      if (a.status === "pending" && b.status !== "pending") return -1;
-      if (a.status !== "pending" && b.status === "pending") return 1;
-
-      return (
-        new Date(b.created_at).getTime() -
-        new Date(a.created_at).getTime()
-      );
+.sort(
+  (a, b) =>
+    new Date(b.created_at).getTime() -
+    new Date(a.created_at).getTime()
+);
     });
 }, [redemptions, now]);
 
