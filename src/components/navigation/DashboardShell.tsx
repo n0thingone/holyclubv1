@@ -235,34 +235,46 @@ export default function DashboardShell({
   ];
 
   const rrppItems: MenuEntry[] = [
-    { href: "/dashboard/perfil", label: "Perfil", icon: UserCircle2 },
-    {
-      href: "/dashboard/rrpp-panel",
-      label: "Mis links lista",
-      icon: Link2,
-    },
-    { href: "/dashboard/ranking", label: "Ranking", icon: Trophy },
-    {
-      href: "/dashboard/rrpp-consumiciones",
-      label: "Mis Consumiciones",
-      icon: Martini,
-    },
-    {
-      href: "/dashboard/puntos/movimientos?tab=movimientos",
-      label: "Ult movimientos",
-      icon: Clock3,
-    },
-    {
-      href: "/dashboard/puntos/movimientos?tab=qr",
-      label: "Mis QR",
-      icon: QrCode,
-    },
-    {
-      href: "/dashboard/beneficios",
-      label: "Beneficios",
-      icon: Sparkles,
-    },
-  ];
+  { href: "/dashboard/perfil", label: "Perfil", icon: UserCircle2 },
+
+  {
+    href: "/dashboard/rrpp-panel",
+    label: "Mis links lista",
+    icon: Link2,
+  },
+
+  {
+    href: "/dashboard/mis-rendimientos",
+    label: "Mis rendimientos",
+    icon: Trophy,
+  },
+
+  { href: "/dashboard/ranking", label: "Ranking", icon: Trophy },
+
+  {
+    href: "/dashboard/rrpp-consumiciones",
+    label: "Mis Consumiciones",
+    icon: Martini,
+  },
+
+  {
+    href: "/dashboard/puntos/movimientos?tab=movimientos",
+    label: "Ult movimientos",
+    icon: Clock3,
+  },
+
+  {
+    href: "/dashboard/puntos/movimientos?tab=qr",
+    label: "Mis QR",
+    icon: QrCode,
+  },
+
+  {
+    href: "/dashboard/beneficios",
+    label: "Beneficios",
+    icon: Sparkles,
+  },
+];
 
   const adminItems: MenuEntry[] = [
     { href: "/dashboard/perfil", label: "Perfil", icon: UserCircle2 },
