@@ -17,11 +17,6 @@ function getMonthKey(value?: string | null) {
   return `${year}-${month}`;
 }
 
-function getCurrentMonthKey() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function formatMonthLabel(monthKey: string) {
   if (!monthKey) return "Mes";
   const [year, month] = monthKey.split("-");
@@ -53,7 +48,8 @@ export default function MisRendimientosPage() {
   const [rrpp, setRrpp] = useState<any>(null);
   const [guests, setGuests] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
+  const [checkins, setCheckins] = useState<any[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState("");
 
   async function loadData() {
     setLoading(true);
@@ -65,11 +61,15 @@ export default function MisRendimientosPage() {
       return;
     }
 
-    const { data: rrppData } = await supabase
+    const { data: rrppData, error: rrppError } = await supabase
       .from("rrpp_profiles")
       .select("*")
       .eq("profile_id", profileId)
       .maybeSingle();
+
+    if (rrppError) {
+      console.error("Error cargando RRPP:", rrppError);
+    }
 
     if (!rrppData) {
       setLoading(false);
@@ -78,29 +78,60 @@ export default function MisRendimientosPage() {
 
     setRrpp(rrppData);
 
-    const { data: guestData } = await supabase
+    const { data: guestData, error: guestError } = await supabase
       .from("guest_registrations")
-      .select("id,event_id,first_name,last_name,dni_last3,registration_status,created_at")
+      .select(
+        "id,event_id,rrpp_id,first_name,last_name,dni_last3,registration_status,created_at"
+      )
       .eq("rrpp_id", rrppData.id)
       .order("created_at", { ascending: false });
 
+    if (guestError) {
+      console.error("Error cargando invitados:", guestError);
+    }
+
+    const safeGuests = guestData || [];
+
     const eventIds = Array.from(
-      new Set((guestData || []).map((g) => g.event_id).filter(Boolean))
+      new Set(safeGuests.map((g) => g.event_id).filter(Boolean))
+    );
+
+    const registrationIds = Array.from(
+      new Set(safeGuests.map((g) => g.id).filter(Boolean))
     );
 
     let eventData: any[] = [];
+    let checkinData: any[] = [];
 
     if (eventIds.length > 0) {
-      const res = await supabase
+      const { data, error } = await supabase
         .from("events")
         .select("id,name,event_date,status,is_active,created_at")
         .in("id", eventIds);
 
-      eventData = res.data || [];
+      if (error) {
+        console.error("Error cargando eventos:", error);
+      }
+
+      eventData = data || [];
     }
 
-    setGuests(guestData || []);
-    setEvents(eventData || []);
+    if (registrationIds.length > 0) {
+      const { data, error } = await supabase
+        .from("checkins")
+        .select("id,event_id,registration_id,rrpp_id,checked_in_at,result")
+        .in("registration_id", registrationIds);
+
+      if (error) {
+        console.error("Error cargando checkins:", error);
+      }
+
+      checkinData = data || [];
+    }
+
+    setGuests(safeGuests);
+    setEvents(eventData);
+    setCheckins(checkinData);
     setLoading(false);
   }
 
@@ -114,6 +145,16 @@ export default function MisRendimientosPage() {
     return map;
   }, [events]);
 
+  const checkinMap = useMemo(() => {
+    const map = new Map();
+    checkins.forEach((c) => {
+      if (c.registration_id) {
+        map.set(c.registration_id, c);
+      }
+    });
+    return map;
+  }, [checkins]);
+
   const monthOptions = useMemo(() => {
     const months = new Set<string>();
 
@@ -123,10 +164,14 @@ export default function MisRendimientosPage() {
       if (key) months.add(key);
     });
 
-    if (months.size === 0) months.add(getCurrentMonthKey());
-
     return Array.from(months).sort((a, b) => b.localeCompare(a));
   }, [guests, eventMap]);
+
+  useEffect(() => {
+    if (!selectedMonth && monthOptions.length > 0) {
+      setSelectedMonth(monthOptions[0]);
+    }
+  }, [monthOptions, selectedMonth]);
 
   const filteredGuests = useMemo(() => {
     return guests.filter((g) => {
@@ -142,6 +187,8 @@ export default function MisRendimientosPage() {
     filteredGuests.forEach((g) => {
       const event = eventMap.get(g.event_id);
       const key = g.event_id || "sin-evento";
+      const checkin = checkinMap.get(g.id);
+      const didEnter = Boolean(checkin) || g.registration_status === "checked_in";
 
       if (!map.has(key)) {
         map.set(key, {
@@ -157,10 +204,15 @@ export default function MisRendimientosPage() {
       }
 
       const item = map.get(key);
-      item.anotados += 1;
-      item.guests.push(g);
 
-      if (g.registration_status === "checked_in") {
+      item.anotados += 1;
+      item.guests.push({
+        ...g,
+        didEnter,
+        checked_in_at: checkin?.checked_in_at || null,
+      });
+
+      if (didEnter) {
         item.ingresaron += 1;
       } else {
         item.pendientes += 1;
@@ -172,11 +224,11 @@ export default function MisRendimientosPage() {
     return Array.from(map.values()).sort((a, b) => {
       return new Date(b.event_date).getTime() - new Date(a.event_date).getTime();
     });
-  }, [filteredGuests, eventMap]);
+  }, [filteredGuests, eventMap, checkinMap]);
 
-  const totalIngresaron = filteredGuests.filter(
-    (g) => g.registration_status === "checked_in"
-  ).length;
+  const totalIngresaron = filteredGuests.filter((g) => {
+    return Boolean(checkinMap.get(g.id)) || g.registration_status === "checked_in";
+  }).length;
 
   const totalAnotados = filteredGuests.length;
   const totalGanancia = totalIngresaron * PAY_PER_ENTRY;
@@ -233,11 +285,15 @@ export default function MisRendimientosPage() {
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm font-bold text-white outline-none focus:border-fuchsia-500/40"
             >
-              {monthOptions.map((month) => (
-                <option key={month} value={month} className="bg-black text-white">
-                  {formatMonthLabel(month)}
-                </option>
-              ))}
+              {monthOptions.length === 0 ? (
+                <option value="">Sin meses</option>
+              ) : (
+                monthOptions.map((month) => (
+                  <option key={month} value={month} className="bg-black text-white">
+                    {formatMonthLabel(month)}
+                  </option>
+                ))
+              )}
             </select>
           </div>
         </section>
@@ -279,7 +335,8 @@ export default function MisRendimientosPage() {
                       <div>
                         <p className="text-lg font-black">{item.name}</p>
                         <p className="text-sm text-zinc-400">
-                          {formatEventDate(item.event_date)} · {item.ingresaron} ingresos / {item.anotados} anotados
+                          {formatEventDate(item.event_date)} · {item.ingresaron} ingresos /{" "}
+                          {item.anotados} anotados
                         </p>
                       </div>
 
@@ -294,7 +351,7 @@ export default function MisRendimientosPage() {
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-800">
                       <div
                         className="h-full rounded-full bg-fuchsia-400"
-                        style={{ width: `${conversion}%` }}
+                        style={{ width: `${Math.min(conversion, 100)}%` }}
                       />
                     </div>
                   </summary>
@@ -325,14 +382,12 @@ export default function MisRendimientosPage() {
 
                           <span
                             className={
-                              g.registration_status === "checked_in"
+                              g.didEnter
                                 ? "rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-black text-emerald-300"
                                 : "rounded-full bg-zinc-800 px-2 py-1 text-xs font-black text-zinc-300"
                             }
                           >
-                            {g.registration_status === "checked_in"
-                              ? "INGRESÓ"
-                              : "PENDIENTE"}
+                            {g.didEnter ? "INGRESÓ" : "PENDIENTE"}
                           </span>
                         </div>
                       ))}
