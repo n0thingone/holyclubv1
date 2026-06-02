@@ -293,6 +293,11 @@ export default function DashboardShell({
   label: "ONLINE STATS",
   icon: Trophy,
 },
+{
+  href: "/dashboard/admin/auditoria",
+  label: "Auditoría",
+  icon: Shield,
+},
     {
       href: "/dashboard/admin/eventos/resumen",
       label: "Resumen evento",
