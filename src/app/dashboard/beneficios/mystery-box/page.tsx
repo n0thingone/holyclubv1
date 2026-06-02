@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import LevelUpModal from "@/components/progress/LevelUpModal";
+import Image from "next/image";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -36,6 +37,8 @@ type RpcResult = {
 };
 
 const BOX_COST = 3000;
+const SPIN_ITEM_WIDTH = 118;
+const SPIN_DURATION_MS = 6400;
 
 const rewards: BoxReward[] = [
   {
@@ -183,6 +186,42 @@ function getRewardMeta(rewardId: string): BoxReward | null {
   return rewards.find((reward) => reward.id === rewardId) ?? null;
 }
 
+function rewardEmoji(reward: BoxReward) {
+  if (reward.id === "nothing") return "😅";
+  if (reward.id.includes("credits")) return "🪙";
+  if (reward.id === "shot") return "🥃";
+  if (reward.id === "pinta") return "🍺";
+  if (reward.id === "chandon") return "🍾";
+  if (reward.id === "free_box") return "🎁";
+  if (reward.id === "vaso_litro") return "🥤";
+  return "✨";
+}
+
+function buildSpinItems(winner: BoxReward) {
+  const totalItems = 82;
+  const targetIndex = 70;
+
+  const items = Array.from({ length: totalItems }, (_, index) => {
+    const pool = rewards.filter((reward) => reward.id !== winner.id);
+    const reward = pool[Math.floor(Math.random() * pool.length)] || rewards[0];
+
+    // Cerca del final ponemos premios buenos para generar tensión visual.
+    if ([targetIndex - 5, targetIndex - 3, targetIndex + 2].includes(index)) {
+      return rewards.find((item) => item.rarity === "legendary") || reward;
+    }
+
+    if ([targetIndex - 2, targetIndex + 1].includes(index)) {
+      return rewards.find((item) => item.rarity === "epic") || reward;
+    }
+
+    return reward;
+  });
+
+  items[targetIndex] = winner;
+
+  return { items, targetIndex };
+}
+
 
 function rarityCasinoClasses(rarity: Rarity) {
   switch (rarity) {
@@ -239,7 +278,12 @@ export default function MysteryBoxPage() {
   const [isGuest, setIsGuest] = useState(false);
   const [levelUpData, setLevelUpData] = useState<any>(null);
   const [freeBoxes, setFreeBoxes] = useState(0);
+  const [spinItems, setSpinItems] = useState<BoxReward[]>([]);
+  const [spinOffset, setSpinOffset] = useState(0);
+  const [spinTransition, setSpinTransition] = useState("none");
+  const [spinPhase, setSpinPhase] = useState<"idle" | "fast" | "slow" | "final">("idle");
   const prizesScrollRef = useRef<HTMLDivElement | null>(null);
+  const rouletteViewportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setIsGuest(isGuestUser());
@@ -311,6 +355,31 @@ const credits = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0)
     };
   }, []);
 
+  async function playBoxSpin(winner: BoxReward) {
+    const { items, targetIndex } = buildSpinItems(winner);
+
+    setSpinItems(items);
+    setSpinOffset(0);
+    setSpinTransition("none");
+    setSpinPhase("fast");
+
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
+
+    const viewportWidth = rouletteViewportRef.current?.clientWidth ?? 320;
+    const finalOffset =
+      targetIndex * SPIN_ITEM_WIDTH - viewportWidth / 2 + SPIN_ITEM_WIDTH / 2;
+
+    setSpinTransition(
+      `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.08, 0.82, 0.08, 1)`
+    );
+    setSpinOffset(finalOffset);
+
+    window.setTimeout(() => setSpinPhase("slow"), 2300);
+    window.setTimeout(() => setSpinPhase("final"), 4750);
+
+    await new Promise((resolve) => window.setTimeout(resolve, SPIN_DURATION_MS + 250));
+  }
+
   async function handleOpenBox() {
     if (isGuest) {
       setError("Iniciá sesión para usar la Mystery Box.");
@@ -323,14 +392,12 @@ const credits = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0)
     setOpenedReward(null);
     setShowJackpot(false);
     setIsOpening(true);
+    setSpinItems([]);
+    setSpinOffset(0);
+    setSpinTransition("none");
+    setSpinPhase("fast");
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1700));
-      setShowFlash(true);
-
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      setShowFlash(false);
-
       const useFreeBox = hasFreeBox;
 
       const { data, error } = await (supabase as any).rpc("open_holy_mystery_box", {
@@ -352,6 +419,12 @@ const credits = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0)
         throw new Error(`Premio desconocido devuelto por la DB: ${result.reward}`);
       }
 
+      await playBoxSpin(rewardMeta);
+
+      setShowFlash(true);
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
+      setShowFlash(false);
+
       setOpenedReward(rewardMeta);
       setHistory((prev) => [rewardMeta, ...prev].slice(0, 6));
 
@@ -359,20 +432,20 @@ const credits = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0)
         setFreeBoxes((prev) => Math.max(0, prev - 1));
       }
 
-// 🧠 XP por abrir Mystery Box
-const { data: xpData, error: xpError } = await (supabase as any).rpc("add_holy_xp", {
-  p_user_id: userId,
-  p_amount: 30,
-  p_reason: "mystery_box",
-});
+      // 🧠 XP por abrir Mystery Box
+      const { data: xpData, error: xpError } = await (supabase as any).rpc("add_holy_xp", {
+        p_user_id: userId,
+        p_amount: 30,
+        p_reason: "mystery_box",
+      });
 
-if (xpError) {
-  console.error("No se pudo sumar XP por Mystery Box:", xpError);
-}
+      if (xpError) {
+        console.error("No se pudo sumar XP por Mystery Box:", xpError);
+      }
 
-if (xpData?.level_up) {
-  setLevelUpData(xpData);
-}
+      if (xpData?.level_up) {
+        setLevelUpData(xpData);
+      }
 
       const { data: refreshedProgress } = await supabase
         .from("holy_user_progress")
@@ -381,12 +454,9 @@ if (xpData?.level_up) {
         .maybeSingle();
 
       if (refreshedProgress) {
-       setFreeBoxes(Number((refreshedProgress as any)?.free_boxes ?? 0));
+        setFreeBoxes(Number((refreshedProgress as any)?.free_boxes ?? 0));
       }
 
-      // No pisamos el saldo con result.balance para evitar valores viejos.
-      // La función SQL ya sincroniza profiles.holy_points_balance.
-      // refreshProfile() recarga el saldo desde la fuente actual del AuthContext.
       await refreshProfile();
 
       if (rewardMeta.id === "10000_credits") {
@@ -398,6 +468,7 @@ if (xpData?.level_up) {
       setError(err?.message || "No se pudo abrir la caja.");
     } finally {
       setIsOpening(false);
+      setSpinPhase("idle");
     }
   }
 
@@ -600,52 +671,145 @@ if (xpData?.level_up) {
               </AnimatePresence>
 
               {!openedReward ? (
-                <motion.div
-                  animate={
-                    isOpening
-                      ? {
-                          rotate: [0, -3, 3, -3, 3, 0],
-                          scale: [1, 1.04, 1, 1.04, 1],
-                        }
-                      : {
-                          y: [0, -8, 0],
-                        }
-                  }
-                  transition={
-                    isOpening
-                      ? {
-                          duration: 0.7,
-                          repeat: 2,
-                          ease: "easeInOut",
-                        }
-                      : {
-                          duration: 2.2,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                        }
-                  }
-                  className="relative z-10 w-full max-w-[260px] sm:max-w-[360px]"
-                >
-                  <div className="absolute inset-x-8 bottom-2 h-10 rounded-full bg-fuchsia-500/25 blur-2xl" />
-
-                  <div className="relative h-[175px] w-full rounded-[24px] border border-fuchsia-400/20 bg-[linear-gradient(180deg,rgba(29,9,50,0.96),rgba(10,10,16,0.98))] shadow-[0_0_80px_rgba(217,70,239,0.18)] sm:h-[250px] sm:rounded-[28px]">
-                    <div className="absolute inset-x-4 top-4 h-7 rounded-2xl border border-white/10 bg-white/5 sm:top-5 sm:h-8" />
-                    <div className="absolute inset-y-0 left-0 w-6 rounded-l-[28px] border-r border-fuchsia-400/20 bg-white/5" />
-                    <div className="absolute inset-y-0 right-0 w-6 rounded-r-[28px] border-l border-fuchsia-400/20 bg-white/5" />
-                    <div className="absolute inset-x-0 top-[77px] h-[8px] bg-fuchsia-500/70 shadow-[0_0_30px_rgba(217,70,239,0.75)] sm:top-[104px] sm:h-[10px]" />
-                    <div className="absolute inset-x-0 top-[89px] h-[3px] bg-cyan-400/90 shadow-[0_0_26px_rgba(34,211,238,0.8)] sm:top-[118px]" />
-
-                    <div className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[20px] border border-fuchsia-400/25 bg-black/30 shadow-[0_0_40px_rgba(217,70,239,0.22)] sm:h-20 sm:w-20 sm:rounded-[24px]">
-                      <span className="text-3xl font-black text-fuchsia-300 sm:text-4xl">?</span>
-                    </div>
-
-                    <div className="absolute left-1/2 top-[45px] -translate-x-1/2 text-center sm:top-[62px]">
-                      <p className="text-xs font-black uppercase tracking-[0.3em] text-white sm:text-sm">
-                        HOLY
+                isOpening ? (
+                  <div className="relative z-10 w-full max-w-[620px]">
+                    <div className="mb-5 text-center">
+                      <motion.p
+                        animate={{ opacity: [0.45, 1, 0.45] }}
+                        transition={{ duration: 1.1, repeat: Infinity }}
+                        className="text-sm font-black uppercase tracking-[0.18em] text-fuchsia-200"
+                      >
+                        {spinPhase === "fast"
+                          ? "ABRIENDO CAJA..."
+                          : spinPhase === "slow"
+                            ? "SE VA FRENANDO..."
+                            : spinPhase === "final"
+                              ? "CASI... CASI..."
+                              : "PREPARANDO..."}
+                      </motion.p>
+                      <p className="mt-1 text-xs text-white/45">
+                        El premio ya está decidido. La ruleta cae justo en tu drop.
                       </p>
                     </div>
+
+                    <div className="relative mx-auto overflow-hidden rounded-[28px] border border-fuchsia-400/35 bg-black/45 py-5 shadow-[0_0_70px_rgba(217,70,239,0.20)]">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 z-20 w-16 bg-gradient-to-r from-black via-black/80 to-transparent" />
+                      <div className="pointer-events-none absolute inset-y-0 right-0 z-20 w-16 bg-gradient-to-l from-black via-black/80 to-transparent" />
+
+                      <div className="pointer-events-none absolute left-1/2 top-0 z-30 h-full w-[2px] -translate-x-1/2 bg-fuchsia-300 shadow-[0_0_26px_rgba(217,70,239,1)]" />
+                      <div className="pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 border-x-[12px] border-t-[18px] border-x-transparent border-t-fuchsia-300 drop-shadow-[0_0_14px_rgba(217,70,239,0.95)]" />
+                      <div className="pointer-events-none absolute bottom-0 left-1/2 z-30 -translate-x-1/2 border-x-[12px] border-b-[18px] border-x-transparent border-b-fuchsia-300 drop-shadow-[0_0_14px_rgba(217,70,239,0.95)]" />
+
+                      <div ref={rouletteViewportRef} className="overflow-hidden">
+                        <div
+                          className="flex gap-3 px-4"
+                          style={{
+                            transform: `translateX(-${spinOffset}px)`,
+                            transition: spinTransition,
+                          }}
+                        >
+                          {(spinItems.length ? spinItems : [...rewards, ...rewards, ...rewards]).map((reward, index) => {
+                            const casino = rarityCasinoClasses(reward.rarity);
+
+                            return (
+                              <div
+                                key={`${reward.id}-spin-${index}`}
+                                className={`relative flex h-[112px] shrink-0 flex-col items-center justify-center overflow-hidden rounded-2xl border px-2 text-center ${casino.frame}`}
+                                style={{ width: `${SPIN_ITEM_WIDTH - 12}px` }}
+                              >
+                                <div className={`pointer-events-none absolute left-1/2 top-0 h-16 w-20 -translate-x-1/2 rounded-full bg-gradient-radial ${casino.orb} blur-2xl`} />
+
+                                <div className="relative z-10 text-3xl">
+                                  {rewardEmoji(reward)}
+                                </div>
+
+                                <p className={`relative z-10 mt-2 text-[10px] font-black uppercase leading-tight ${casino.text}`}>
+                                  {reward.name}
+                                </p>
+
+                                <p className="relative z-10 mt-1 text-[9px] font-bold uppercase text-white/35">
+                                  {rarityLabel(reward.rarity)}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 text-center">
+                      <p className="text-xs text-white/55">
+                        {spinPhase === "fast"
+                          ? "Velocidad: 100%"
+                          : spinPhase === "slow"
+                            ? "Velocidad: 35%"
+                            : spinPhase === "final"
+                              ? "Velocidad: 5%"
+                              : "Calculando premio..."}
+                      </p>
+
+                      <div className="mx-auto mt-3 flex w-24 justify-center gap-1.5">
+                        {[0, 1, 2].map((dot) => (
+                          <motion.span
+                            key={dot}
+                            animate={{ opacity: [0.25, 1, 0.25], y: [0, -3, 0] }}
+                            transition={{ duration: 0.8, repeat: Infinity, delay: dot * 0.14 }}
+                            className="h-1.5 w-1.5 rounded-full bg-fuchsia-300"
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </motion.div>
+                ) : (
+                  <motion.div
+                    animate={{
+                      y: [0, -10, 0],
+                      rotate: [0, -1.5, 1.5, 0],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                    className="relative z-10 w-full max-w-[300px] sm:max-w-[420px]"
+                  >
+                    <motion.div
+                      animate={{
+                        scale: [1, 1.15, 1],
+                        opacity: [0.45, 0.9, 0.45],
+                      }}
+                      transition={{
+                        duration: 2.5,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      }}
+                      className="absolute inset-x-8 bottom-2 h-16 rounded-full bg-fuchsia-500/40 blur-3xl"
+                    />
+
+                    <motion.div
+                      animate={{
+                        opacity: [0.35, 0.75, 0.35],
+                        scale: [0.96, 1.06, 0.96],
+                      }}
+                      transition={{
+                        duration: 2.2,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      }}
+                      className="absolute left-1/2 top-1/2 h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400/10 blur-3xl"
+                    />
+
+                    <Image
+                      src="/images/holy-box.png"
+                      alt="Holy Box"
+                      width={700}
+                      height={700}
+                      priority
+                      className="relative z-10 mx-auto w-full select-none drop-shadow-[0_0_65px_rgba(217,70,239,0.55)]"
+                      draggable={false}
+                    />
+                  </motion.div>
+                )
               ) : (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.76, y: 28 }}
