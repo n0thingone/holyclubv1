@@ -1054,6 +1054,13 @@ if (xpError) {
             .from("rrpp_event_rewards")
             .update(updatePayload)
             .eq("id", rrppReward.id);
+            await (supabase as any)
+  .from("holy_redemptions")
+  .update({
+    status: "redeemed",
+    redeemed_at: updatePayload.redeemed_at,
+  })
+  .eq("qr_token", rrppReward.qr_token);
 
           if (updateError) {
             console.error("Error marcando consumición RRPP:", updateError);
