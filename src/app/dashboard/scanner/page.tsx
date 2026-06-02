@@ -1203,9 +1203,23 @@ if (xpError) {
 
       try {
         if (mainMode === "entrada") {
-          const result = await processEntryQr(rawValue, event!.id, staffId!);
-          setEntryScanResult(result);
-          showSecurityDisplay(result);
+        let result = await processEntryQr(rawValue, event!.id, staffId!);
+
+if (
+  result.success &&
+  result.result === "valid_entry" &&
+  result.guest?.id &&
+  result.guest?.user_id
+) {
+  const added = await tryAwardEntryPoints(result.guest);
+  result = {
+    ...result,
+    clientPointsAdded: added,
+  };
+}
+
+setEntryScanResult(result);
+showSecurityDisplay(result);
 
           if (result.success) {
             if (result.result === "gold_entry") {
