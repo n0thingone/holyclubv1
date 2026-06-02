@@ -7,6 +7,44 @@ import { useAuth } from "@/context/AuthContext";
 
 const PAY_PER_ENTRY = 1000;
 
+function getMonthKey(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function getCurrentMonthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(monthKey: string) {
+  if (!monthKey) return "Mes";
+  const [year, month] = monthKey.split("-");
+  const date = new Date(Number(year), Number(month) - 1, 1);
+
+  return date.toLocaleDateString("es-AR", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function formatEventDate(value?: string | null) {
+  if (!value) return "Sin fecha";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+
+  return date.toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
+}
+
 export default function MisRendimientosPage() {
   const supabase = getSupabaseClient();
   const { profile, user } = useAuth();
@@ -15,6 +53,7 @@ export default function MisRendimientosPage() {
   const [rrpp, setRrpp] = useState<any>(null);
   const [guests, setGuests] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
 
   async function loadData() {
     setLoading(true);
@@ -75,10 +114,32 @@ export default function MisRendimientosPage() {
     return map;
   }, [events]);
 
+  const monthOptions = useMemo(() => {
+    const months = new Set<string>();
+
+    guests.forEach((g) => {
+      const event = eventMap.get(g.event_id);
+      const key = getMonthKey(event?.event_date || event?.created_at || g.created_at);
+      if (key) months.add(key);
+    });
+
+    if (months.size === 0) months.add(getCurrentMonthKey());
+
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
+  }, [guests, eventMap]);
+
+  const filteredGuests = useMemo(() => {
+    return guests.filter((g) => {
+      const event = eventMap.get(g.event_id);
+      const monthKey = getMonthKey(event?.event_date || event?.created_at || g.created_at);
+      return monthKey === selectedMonth;
+    });
+  }, [guests, eventMap, selectedMonth]);
+
   const grouped = useMemo(() => {
     const map = new Map();
 
-    guests.forEach((g) => {
+    filteredGuests.forEach((g) => {
       const event = eventMap.get(g.event_id);
       const key = g.event_id || "sin-evento";
 
@@ -86,7 +147,7 @@ export default function MisRendimientosPage() {
         map.set(key, {
           event_id: key,
           name: event?.name || "Evento sin nombre",
-          event_date: event?.event_date || event?.created_at || "",
+          event_date: event?.event_date || event?.created_at || g.created_at || "",
           anotados: 0,
           ingresaron: 0,
           pendientes: 0,
@@ -111,14 +172,15 @@ export default function MisRendimientosPage() {
     return Array.from(map.values()).sort((a, b) => {
       return new Date(b.event_date).getTime() - new Date(a.event_date).getTime();
     });
-  }, [guests, eventMap]);
+  }, [filteredGuests, eventMap]);
 
-  const totalIngresaron = guests.filter(
+  const totalIngresaron = filteredGuests.filter(
     (g) => g.registration_status === "checked_in"
   ).length;
 
-  const totalAnotados = guests.length;
+  const totalAnotados = filteredGuests.length;
   const totalGanancia = totalIngresaron * PAY_PER_ENTRY;
+  const totalEventosMes = grouped.length;
 
   if (loading) {
     return (
@@ -155,7 +217,33 @@ export default function MisRendimientosPage() {
           </p>
         </section>
 
-        <section className="grid grid-cols-3 gap-3">
+        <section className="rounded-3xl border border-white/10 bg-zinc-950 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-fuchsia-300">
+                Filtro mensual
+              </p>
+              <p className="mt-1 text-sm text-zinc-400">
+                Mostrando eventos de {formatMonthLabel(selectedMonth)}
+              </p>
+            </div>
+
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm font-bold text-white outline-none focus:border-fuchsia-500/40"
+            >
+              {monthOptions.map((month) => (
+                <option key={month} value={month} className="bg-black text-white">
+                  {formatMonthLabel(month)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Card title="Eventos" value={totalEventosMes} purple />
           <Card title="Anotados" value={totalAnotados} />
           <Card title="Ingresaron" value={totalIngresaron} green />
           <Card
@@ -167,12 +255,12 @@ export default function MisRendimientosPage() {
 
         <section className="space-y-3">
           <h2 className="text-lg font-black text-fuchsia-300">
-            Rendimiento por evento
+            Eventos de {formatMonthLabel(selectedMonth)}
           </h2>
 
           {grouped.length === 0 ? (
             <div className="rounded-3xl border border-white/10 bg-zinc-950 p-5 text-zinc-400">
-              Todavía no tenés invitados cargados.
+              No tenés invitados cargados en este mes.
             </div>
           ) : (
             grouped.map((item) => {
@@ -191,7 +279,7 @@ export default function MisRendimientosPage() {
                       <div>
                         <p className="text-lg font-black">{item.name}</p>
                         <p className="text-sm text-zinc-400">
-                          {item.ingresaron} ingresos / {item.anotados} anotados
+                          {formatEventDate(item.event_date)} · {item.ingresaron} ingresos / {item.anotados} anotados
                         </p>
                       </div>
 
@@ -260,7 +348,7 @@ export default function MisRendimientosPage() {
   );
 }
 
-function Card({ title, value, green, gold }: any) {
+function Card({ title, value, green, gold, purple }: any) {
   return (
     <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4 text-center">
       <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
@@ -268,7 +356,13 @@ function Card({ title, value, green, gold }: any) {
       </p>
       <p
         className={`mt-2 text-2xl font-black ${
-          green ? "text-emerald-300" : gold ? "text-yellow-300" : "text-white"
+          green
+            ? "text-emerald-300"
+            : gold
+              ? "text-yellow-300"
+              : purple
+                ? "text-fuchsia-300"
+                : "text-white"
         }`}
       >
         {value}
