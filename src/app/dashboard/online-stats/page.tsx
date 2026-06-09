@@ -474,11 +474,11 @@ export default function OnlineStatsPage() {
       approved_at: new Date().toISOString(),
     }
 
-    const { data: orderData, error: orderError } = await supabase
-      .from('ticket_orders')
-      .insert(orderPayload)
-      .select('id')
-      .single()
+const { data: orderData, error: orderError } = await (supabase as any)
+  .from('ticket_orders')
+  .insert(orderPayload)
+  .select('id')
+  .single()
 
     if (orderError || !orderData) {
       setTicketError(orderError?.message || 'No se pudo crear la orden.')
@@ -506,7 +506,7 @@ export default function OnlineStatsPage() {
       status: 'valid',
     }
 
-    const { data: ticketData, error: ticketErrorInsert } = await supabase
+    const { data: ticketData, error: ticketErrorInsert } = await (supabase as any)
       .from('tickets')
       .insert(ticketPayload)
       .select('id')
@@ -519,7 +519,7 @@ export default function OnlineStatsPage() {
     }
 
     if (rrppId && rrppCommission > 0) {
-      const { error: commissionError } = await supabase.from('ticket_commissions').insert({
+      const { error: commissionError } = await (supabase as any).from('ticket_commissions').insert({
         ticket_id: ticketData.id,
         order_id: orderData.id,
         event_id: selectedEventId,
@@ -534,7 +534,7 @@ export default function OnlineStatsPage() {
       }
     }
 
-    await supabase
+    await (supabase as any)
       .from('ticket_batches')
       .update({ sold_count: soldForBatch + 1 })
       .eq('id', batch.id)
