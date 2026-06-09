@@ -415,6 +415,7 @@ export default function AdminEventosPage() {
       }
 
      for (let index = 0; index < form.ticket_batches.length; index += 1) {
+         const batch = form.ticket_batches[index];
         const price = parseMoney(batch.price);
         const commission = parseMoney(batch.rrpp_commission);
         const stock = parseStock(batch.stock);
