@@ -235,9 +235,9 @@ export async function POST(req: NextRequest) {
         buyer_dni: buyerDni || null,
       },
       back_urls: {
-        success: `${siteUrl}/entradas/gracias?order_id=${order.id}`,
-        failure: `${siteUrl}/entradas/error?order_id=${order.id}`,
-        pending: `${siteUrl}/entradas/pendiente?order_id=${order.id}`,
+        success: `${siteUrl}/entradas/gracias?order=${order.public_token}`,
+        failure: `${siteUrl}/entradas/error?order=${order.public_token}`,
+        pending: `${siteUrl}/entradas/pendiente?order=${order.public_token}`,
       },
       statement_descriptor: "HOLY CLUB",
     };
