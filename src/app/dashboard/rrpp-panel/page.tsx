@@ -31,6 +31,7 @@ export default function RrppPage() {
   const [rrpp, setRrpp] = useState<RrppProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [copiedAnticipada, setCopiedAnticipada] = useState(false);
   const [showGuests, setShowGuests] = useState(false);
   const [guests, setGuests] = useState<GuestRegistration[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -137,6 +138,7 @@ export default function RrppPage() {
 
   const appUrl = typeof window !== "undefined" ? window.location.origin : "";
   const myLink = rrpp ? `${appUrl}/lista/${rrpp.slug}` : "";
+  const anticipadaLink = rrpp ? `${appUrl}/entradas?ref=${rrpp.slug}` : "";
   const storyEventImageUrl = eventImageUrl || (event as any)?.event_image_url || "";
 
   useEffect(() => {
@@ -199,6 +201,26 @@ export default function RrppPage() {
     navigator.clipboard.writeText(myLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function copyAnticipadaLink() {
+    if (!anticipadaLink) return;
+
+    navigator.clipboard.writeText(anticipadaLink);
+    setCopiedAnticipada(true);
+    setTimeout(() => setCopiedAnticipada(false), 2000);
+  }
+
+  async function shareAnticipadaLink() {
+    if (!anticipadaLink || !navigator.share) return;
+
+    await navigator
+      .share({
+        title: "Anticipadas HOLY Club",
+        text: "Comprá tu anticipada oficial para HOLY.",
+        url: anticipadaLink,
+      })
+      .catch(() => {});
   }
 
   async function shareLink() {
@@ -360,6 +382,62 @@ export default function RrppPage() {
                 >
                   <Share2 className="w-3.5 h-3.5 inline mr-1.5" />
                   COMPARTIR LINK
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {rrpp && (
+          <div className="holy-card bg-gradient-card border border-yellow-400/20">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Zap className="w-3.5 h-3.5 text-gold" />
+              <p className="holy-label mb-0 text-gold">MI LINK ANTICIPADA</p>
+            </div>
+
+            <div className="flex items-center gap-2 bg-background/60 rounded-xl px-3 py-2.5 mb-2">
+              <span className="text-sm text-gold flex-1 truncate font-mono">
+                {anticipadaLink}
+              </span>
+
+              <button
+                onClick={copyAnticipadaLink}
+                className="flex-shrink-0 p-1.5 rounded-lg bg-card border border-border text-text-muted hover:text-gold transition-colors"
+              >
+                {copiedAnticipada ? (
+                  <Check className="w-4 h-4 text-success" />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+
+            {copiedAnticipada && (
+              <p className="text-success text-xs animate-fade-in">
+                ✓ Link de anticipada copiado
+              </p>
+            )}
+
+            <p className="text-xs text-text-muted leading-relaxed mb-3">
+              Este link vende la anticipada del evento activo y guarda la comisión para tu RRPP.
+            </p>
+
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                onClick={copyAnticipadaLink}
+                className="holy-btn-primary py-3 text-xs"
+              >
+                <Copy className="w-3.5 h-3.5 inline mr-1.5" />
+                COPIAR LINK ANTICIPADA
+              </button>
+
+              {typeof navigator !== "undefined" && "share" in navigator && (
+                <button
+                  onClick={shareAnticipadaLink}
+                  className="holy-btn-secondary py-3 text-xs"
+                >
+                  <Share2 className="w-3.5 h-3.5 inline mr-1.5" />
+                  COMPARTIR ANTICIPADA
                 </button>
               )}
             </div>
