@@ -10,8 +10,6 @@ import {
   CreditCard,
   Loader2,
   Phone,
-  ShieldCheck,
-  Sparkles,
   Ticket,
   User,
   WalletCards,
@@ -71,12 +69,13 @@ function formatDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Fecha a confirmar";
 
-  return date.toLocaleDateString("es-AR", {
+  const text = date.toLocaleDateString("es-AR", {
     weekday: "long",
-    day: "2-digit",
+    day: "numeric",
     month: "long",
-    year: "numeric",
   });
+
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function cleanDigits(value: string) {
@@ -108,11 +107,14 @@ export default function ComprarEntradaPage() {
   const [message, setMessage] = useState("");
 
   const currentBatch = useMemo(() => {
-    return batches.find((batch) => {
-      if (!batch.active) return false;
-      if (batch.stock === null || typeof batch.stock === "undefined") return true;
-      return Number(batch.sold_count || 0) < Number(batch.stock || 0);
-    }) || null;
+    return (
+      batches.find((batch) => {
+        if (!batch.active) return false;
+        if (batch.stock === null || typeof batch.stock === "undefined")
+          return true;
+        return Number(batch.sold_count || 0) < Number(batch.stock || 0);
+      }) || null
+    );
   }, [batches]);
 
   const available = getAvailable(currentBatch);
@@ -128,12 +130,16 @@ export default function ComprarEntradaPage() {
       const [eventRes, batchRes] = await Promise.all([
         supabase
           .from("events")
-          .select("id,name,event_date,status,is_active,is_closed,event_image_url")
+          .select(
+            "id,name,event_date,status,is_active,is_closed,event_image_url",
+          )
           .eq("id", eventId)
           .maybeSingle(),
         supabase
           .from("ticket_batches")
-          .select("id,event_id,name,batch_order,price,rrpp_commission,stock,sold_count,active")
+          .select(
+            "id,event_id,name,batch_order,price,rrpp_commission,stock,sold_count,active",
+          )
           .eq("event_id", eventId)
           .eq("active", true)
           .order("batch_order", { ascending: true }),
@@ -154,7 +160,9 @@ export default function ComprarEntradaPage() {
       }
 
       if (batchRes.error) {
-        setError(batchRes.error.message || "No se pudieron cargar las anticipadas.");
+        setError(
+          batchRes.error.message || "No se pudieron cargar las anticipadas.",
+        );
         setLoading(false);
         return;
       }
@@ -291,11 +299,11 @@ export default function ComprarEntradaPage() {
 
   return (
     <main className="min-h-screen overflow-hidden bg-black text-white">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(234,179,8,0.12),transparent_32%),radial-gradient(circle_at_bottom,rgba(217,70,239,0.10),transparent_35%)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(234,179,8,0.13),transparent_30%),radial-gradient(circle_at_bottom,rgba(0,177,234,0.08),transparent_34%)]" />
 
       {event?.event_image_url && (
         <div
-          className="pointer-events-none fixed inset-0 opacity-25 blur-2xl saturate-125"
+          className="pointer-events-none fixed inset-0 opacity-20 blur-2xl saturate-125"
           style={{
             backgroundImage: `url(${event.event_image_url})`,
             backgroundSize: "cover",
@@ -305,74 +313,63 @@ export default function ComprarEntradaPage() {
         />
       )}
 
-      <div className="relative mx-auto max-w-md px-4 pb-10 pt-5">
-        <section className="overflow-hidden rounded-[2rem] border border-yellow-400/30 bg-zinc-950/90 shadow-[0_0_70px_rgba(234,179,8,0.18)] backdrop-blur">
-          <div className="relative p-5">
-            <div className="absolute right-5 top-5 rounded-full border border-yellow-300/30 bg-yellow-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200">
-              Oficial
-            </div>
+      <div className="relative mx-auto max-w-md px-4 pb-10 pt-4">
+        <div className="mb-3 text-center">
+          <p className="text-[11px] font-black uppercase tracking-[0.34em] text-yellow-300">
+            Anticipadas oficiales
+          </p>
+          <h1 className="mt-1 text-2xl font-black uppercase leading-none text-white">
+            {event?.name || "HOLY CLUB"}
+          </h1>
+          <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-yellow-400/25 bg-yellow-400/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-yellow-100">
+            <CalendarDays className="h-3.5 w-3.5 text-yellow-300" />
+            <span>{formatDate(event?.event_date)}</span>
+          </div>
+        </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-300 to-yellow-500 text-black shadow-[0_0_32px_rgba(250,204,21,0.35)]">
-                <Ticket className="h-6 w-6" />
-              </div>
-
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.35em] text-yellow-300">
-                  HOLY CLUB
-                </p>
-                <h1 className="mt-1 text-2xl font-black leading-none">
-                  ANTICIPADAS
-                </h1>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-black/40 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.25em] text-yellow-300">
-                {event?.name || "Evento"}
-              </p>
-
-              <div className="mt-3 flex items-center gap-2 text-sm text-zinc-400">
-                <CalendarDays className="h-4 w-4 text-yellow-300" />
-                <span className="capitalize">{formatDate(event?.event_date)}</span>
-              </div>
-
-              {rrpp && (
-                <div className="mt-3 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2 text-xs font-bold text-fuchsia-200">
-                  Link de RRPP: {rrpp.display_name || rrpp.slug}
+        <section className="rounded-[2rem] border border-yellow-400/25 bg-zinc-950/92 p-5 shadow-[0_0_70px_rgba(234,179,8,0.16)] backdrop-blur">
+          <div className="mb-4 rounded-[1.55rem] border border-yellow-400/20 bg-[radial-gradient(circle_at_top_left,rgba(234,179,8,0.18),rgba(0,0,0,0.35)_46%,rgba(0,0,0,0.55))] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-yellow-400 text-black shadow-[0_0_26px_rgba(250,204,21,0.32)]">
+                    <Ticket className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-yellow-300">
+                      Tanda actual
+                    </p>
+                    <h2 className="truncate text-lg font-black text-white">
+                      {currentBatch?.name || "Sin anticipadas"}
+                    </h2>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </section>
 
-        <section className="mt-4 rounded-[2rem] border border-white/10 bg-zinc-950/90 p-5 shadow-[0_0_45px_rgba(0,0,0,0.35)] backdrop-blur">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.28em] text-yellow-300">
-                Tanda actual
-              </p>
-              <h2 className="mt-1 text-xl font-black">
-                {currentBatch?.name || "Sin anticipadas"}
-              </h2>
+                {rrpp && (
+                  <p className="mt-3 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2 text-xs font-bold text-fuchsia-200">
+                    RRPP: {rrpp.display_name || rrpp.slug}
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-right">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-300">
+                  Precio
+                </p>
+                <p className="text-xl font-black text-emerald-300">
+                  {currentBatch
+                    ? formatMoney(Number(currentBatch.price || 0))
+                    : "—"}
+                </p>
+              </div>
             </div>
 
-            <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-right">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-300">
-                Precio
-              </p>
-              <p className="text-xl font-black text-emerald-300">
-                {currentBatch ? formatMoney(Number(currentBatch.price || 0)) : "—"}
-              </p>
-            </div>
-          </div>
-
-          {currentBatch ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+            {currentBatch ? (
+              <div className="mt-4 grid grid-cols-2 gap-3">
                 <InfoBox
-                  label="Stock"
-                  value={available === null ? "Ilimitado" : `${available} disponibles`}
+                  label="Disponibles"
+                  value={available === null ? "Ilimitado" : `${available}`}
+                  green={!isSoldOut}
                 />
                 <InfoBox
                   label="Estado"
@@ -380,24 +377,13 @@ export default function ComprarEntradaPage() {
                   green={!isSoldOut}
                 />
               </div>
-
-              <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-3 text-xs text-yellow-100/85">
-                <div className="flex items-start gap-2">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-yellow-300" />
-                  <p>
-                    Entrada oficial de HOLY. Después del pago, Mercado Pago confirma y se genera tu QR.
-                  </p>
-                </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-950/20 p-4 text-sm font-bold text-red-100">
+                No hay anticipadas disponibles para este evento.
               </div>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-red-500/30 bg-red-950/20 p-4 text-sm text-red-100">
-              No hay anticipadas disponibles para este evento.
-            </div>
-          )}
-        </section>
+            )}
+          </div>
 
-        <section className="mt-4 rounded-[2rem] border border-white/10 bg-zinc-950/90 p-5 shadow-[0_0_45px_rgba(0,0,0,0.35)] backdrop-blur">
           <div className="mb-4 flex items-center gap-2">
             <User className="h-5 w-5 text-yellow-300" />
             <h2 className="text-lg font-black">Tus datos</h2>
@@ -409,13 +395,13 @@ export default function ComprarEntradaPage() {
                 label="Nombre"
                 value={form.firstName}
                 onChange={(value) => updateForm("firstName", value)}
-                placeholder="Thomas"
+                placeholder="Juan"
               />
               <Field
                 label="Apellido"
                 value={form.lastName}
                 onChange={(value) => updateForm("lastName", value)}
-                placeholder="Mayer"
+                placeholder="Pérez"
               />
             </div>
 
@@ -477,26 +463,51 @@ export default function ComprarEntradaPage() {
             )}
           </button>
 
+          <p className="mt-3 text-center text-xs leading-relaxed text-zinc-500">
+            Tu entrada con QR se genera automáticamente después del pago
+            aprobado.
+          </p>
+
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-            <TrustItem icon={<CreditCard className="h-4 w-4" />} label="Tarjeta" />
+            <TrustItem
+              icon={<CreditCard className="h-4 w-4" />}
+              label="Tarjeta"
+            />
             <TrustItem icon={<WalletCards className="h-4 w-4" />} label="MP" />
             <TrustItem icon={<CheckCircle2 className="h-4 w-4" />} label="QR" />
           </div>
         </section>
 
         <p className="mt-5 px-3 text-center text-xs leading-relaxed text-zinc-500">
-          Si no guardás el QR, el staff puede recuperar tu entrada por DNI o WhatsApp.
+          Si no guardás el QR, el staff puede recuperar tu entrada por DNI o
+          WhatsApp.
         </p>
       </div>
     </main>
   );
 }
 
-function InfoBox({ label, value, green = false }: { label: string; value: string; green?: boolean }) {
+function InfoBox({
+  label,
+  value,
+  green = false,
+}: {
+  label: string;
+  value: string;
+  green?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/45 p-3">
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">{label}</p>
-      <p className={green ? "mt-1 text-sm font-black text-emerald-300" : "mt-1 text-sm font-black text-white"}>
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
+        {label}
+      </p>
+      <p
+        className={
+          green
+            ? "mt-1 text-sm font-black text-emerald-300"
+            : "mt-1 text-sm font-black text-white"
+        }
+      >
         {value}
       </p>
     </div>
@@ -538,8 +549,12 @@ function Field({
 function TrustItem({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/35 px-2 py-3 text-zinc-300">
-      <div className="mx-auto mb-1 flex justify-center text-yellow-300">{icon}</div>
-      <p className="text-[10px] font-black uppercase tracking-[0.16em]">{label}</p>
+      <div className="mx-auto mb-1 flex justify-center text-yellow-300">
+        {icon}
+      </div>
+      <p className="text-[10px] font-black uppercase tracking-[0.16em]">
+        {label}
+      </p>
     </div>
   );
 }
