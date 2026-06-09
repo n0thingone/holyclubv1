@@ -114,7 +114,7 @@ function EntradaGraciasContent() {
     if (!order) {
       setError("No encontramos la orden de la compra.");
       setLoading(false);
-      return;
+      return null;
     }
 
     try {
@@ -129,22 +129,46 @@ function EntradaGraciasContent() {
 
       setData(json);
       setError("");
+      return json;
     } catch (err: any) {
       setError(err?.message || "Error consultando la entrada.");
+      return null;
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    void forceProcessPayment();
-    void loadStatus();
+    let cancelled = false;
+
+    async function start() {
+      // Primero consultamos si el webhook ya creó el ticket.
+      // Solo si todavía no hay QR, usamos el GET del webhook como fallback.
+      const firstStatus = await loadStatus();
+
+      if (cancelled) return;
+
+      const alreadyHasQr = (firstStatus?.tickets || []).length > 0;
+
+      if (!alreadyHasQr && paymentId) {
+        await forceProcessPayment();
+
+        if (!cancelled) {
+          await loadStatus();
+        }
+      }
+    }
+
+    void start();
 
     const interval = setInterval(() => {
       void loadStatus();
     }, 2500);
 
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order, paymentId]);
 

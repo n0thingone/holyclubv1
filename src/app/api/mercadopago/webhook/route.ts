@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type TicketOrder = {
   id: string;
@@ -127,6 +128,50 @@ async function findOrderForPayment(supabase: ReturnType<typeof getSupabaseAdmin>
   return null;
 }
 
+async function getExistingTicketsForOrder(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  orderId: string
+) {
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("id,public_token,ticket_code,rrpp_id,rrpp_commission")
+    .eq("order_id", orderId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function markOrderAsPaid(params: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  orderId: string;
+  payment: any;
+}) {
+  const { supabase, orderId, payment } = params;
+
+  const { error } = await supabase
+    .from("ticket_orders")
+    .update({
+      payment_status: "paid",
+      status: "paid",
+      mp_payment_id: String(payment.id || ""),
+      mp_status: payment.status || null,
+      mp_status_detail: payment.status_detail || null,
+      approved_at: new Date().toISOString(),
+    })
+    .eq("id", orderId);
+
+  if (error) throw error;
+}
+
+function isUniqueViolation(error: any) {
+  return (
+    error?.code === "23505" ||
+    String(error?.message || "").toLowerCase().includes("duplicate key") ||
+    String(error?.details || "").toLowerCase().includes("already exists")
+  );
+}
+
 async function generateTicketsForPaidOrder(params: {
   supabase: ReturnType<typeof getSupabaseAdmin>;
   order: TicketOrder;
@@ -134,14 +179,11 @@ async function generateTicketsForPaidOrder(params: {
 }) {
   const { supabase, order, payment } = params;
 
-  const { data: existingTickets, error: existingTicketsError } = await supabase
-    .from("tickets")
-    .select("id,public_token,ticket_code")
-    .eq("order_id", order.id);
+  const existingTickets = await getExistingTicketsForOrder(supabase, order.id);
 
-  if (existingTicketsError) throw existingTicketsError;
+  if (existingTickets.length > 0) {
+    await markOrderAsPaid({ supabase, orderId: order.id, payment });
 
-  if (existingTickets && existingTickets.length > 0) {
     return {
       created: false,
       tickets: existingTickets,
@@ -158,7 +200,8 @@ async function generateTicketsForPaidOrder(params: {
   if (!batch) throw new Error("No se encontró la tanda de la orden");
 
   const safeBatch = batch as TicketBatch;
-  const quantity = Math.max(1, Number(order.quantity || 1));
+  // Hoy HOLY vende 1 entrada por orden. Esto coincide con el índice único tickets(order_id).
+  const quantity = 1;
   const currentSold = Number(safeBatch.sold_count || 0);
   const stock = safeBatch.stock === null || typeof safeBatch.stock === "undefined"
     ? null
@@ -206,7 +249,24 @@ async function generateTicketsForPaidOrder(params: {
     .insert(ticketsPayload)
     .select("id,public_token,ticket_code,rrpp_id,rrpp_commission");
 
-  if (ticketsError) throw ticketsError;
+  if (ticketsError) {
+    // Idempotencia: Mercado Pago puede pegar por webhook y la página de gracias casi al mismo tiempo.
+    // Si otro proceso ya creó el ticket, no fallamos: devolvemos el existente.
+    if (isUniqueViolation(ticketsError)) {
+      const ticketsAfterRace = await getExistingTicketsForOrder(supabase, order.id);
+
+      if (ticketsAfterRace.length > 0) {
+        await markOrderAsPaid({ supabase, orderId: order.id, payment });
+
+        return {
+          created: false,
+          tickets: ticketsAfterRace,
+        };
+      }
+    }
+
+    throw ticketsError;
+  }
 
   await supabase
     .from("ticket_batches")
@@ -231,17 +291,7 @@ async function generateTicketsForPaidOrder(params: {
     if (commissionError) throw commissionError;
   }
 
-  await supabase
-    .from("ticket_orders")
-    .update({
-      payment_status: "paid",
-      status: "paid",
-      mp_payment_id: String(payment.id || ""),
-      mp_status: payment.status || null,
-      mp_status_detail: payment.status_detail || null,
-      approved_at: new Date().toISOString(),
-    })
-    .eq("id", order.id);
+  await markOrderAsPaid({ supabase, orderId: order.id, payment });
 
   return {
     created: true,
