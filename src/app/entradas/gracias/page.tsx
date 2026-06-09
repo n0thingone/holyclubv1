@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
@@ -68,7 +68,7 @@ function formatDate(value?: string | null) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-export default function EntradaGraciasPage() {
+function EntradaGraciasContent() {
   const searchParams = useSearchParams();
   const order = searchParams.get("order") || searchParams.get("order_id") || "";
   const paymentId =
@@ -254,5 +254,27 @@ export default function EntradaGraciasPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+
+export default function EntradaGraciasPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-black px-4 py-6 text-white">
+          <div className="mx-auto flex min-h-[80vh] max-w-md items-center justify-center">
+            <div className="rounded-[2rem] border border-yellow-400/20 bg-zinc-950 p-8 text-center shadow-[0_0_55px_rgba(234,179,8,0.12)]">
+              <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-yellow-400" />
+              <p className="text-sm font-black uppercase tracking-[0.25em] text-yellow-300">
+                Cargando entrada
+              </p>
+            </div>
+          </div>
+        </main>
+      }
+    >
+      <EntradaGraciasContent />
+    </Suspense>
   );
 }
