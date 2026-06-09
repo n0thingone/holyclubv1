@@ -159,6 +159,20 @@ export default function ComprarEntradaPage() {
         return;
       }
 
+      const loadedEvent = eventRes.data as EventRow;
+      const eventIsActive =
+        loadedEvent.is_active === true || loadedEvent.status === "active";
+      const eventIsClosed =
+        loadedEvent.is_closed === true || loadedEvent.status === "closed";
+
+      if (!eventIsActive || eventIsClosed) {
+        setEvent(null);
+        setBatches([]);
+        setError("Las anticipadas para este evento no están disponibles.");
+        setLoading(false);
+        return;
+      }
+
       if (batchRes.error) {
         setError(
           batchRes.error.message || "No se pudieron cargar las anticipadas.",
@@ -195,6 +209,13 @@ export default function ComprarEntradaPage() {
   }
 
   function validateForm() {
+    const eventIsActive = event?.is_active === true || event?.status === "active";
+    const eventIsClosed = event?.is_closed === true || event?.status === "closed";
+
+    if (!event || !eventIsActive || eventIsClosed) {
+      return "Las anticipadas para este evento no están disponibles.";
+    }
+
     const firstName = form.firstName.trim();
     const lastName = form.lastName.trim();
     const dni = cleanDigits(form.dni);
@@ -225,6 +246,14 @@ export default function ComprarEntradaPage() {
     }
 
     if (!currentBatch || !event) return;
+
+    const eventIsActive = event.is_active === true || event.status === "active";
+    const eventIsClosed = event.is_closed === true || event.status === "closed";
+
+    if (!eventIsActive || eventIsClosed) {
+      setError("Este evento ya no está activo.");
+      return;
+    }
 
     setPaying(true);
 

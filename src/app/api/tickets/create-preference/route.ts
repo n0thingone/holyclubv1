@@ -115,8 +115,14 @@ export async function POST(req: NextRequest) {
       return jsonResponse({ ok: false, error: "Evento no encontrado" }, 404);
     }
 
-    if (event.is_closed || event.status === "closed") {
-      return jsonResponse({ ok: false, error: "El evento está cerrado" }, 400);
+    const eventIsActive = event.is_active === true || event.status === "active";
+    const eventIsClosed = event.is_closed === true || event.status === "closed";
+
+    if (!eventIsActive || eventIsClosed) {
+      return jsonResponse(
+        { ok: false, error: "Este evento no tiene anticipadas activas." },
+        400
+      );
     }
 
     let batchQuery = supabase
