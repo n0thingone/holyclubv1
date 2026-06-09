@@ -34,7 +34,7 @@ const GUEST_ENTRY_POINTS = 2500;
 
 type EntryScanResult = {
   success: boolean;
-  result: "valid_entry" | "gold_entry" | "used_qr" | "expired_qr" | "invalid_qr";
+  result: "valid_entry" | "gold_entry" | "ticket_entry" | "used_qr" | "expired_qr" | "invalid_qr" | "unpaid_ticket";
   message: string;
   color: "green" | "yellow" | "red" | "gold";
   rrppName?: string;
@@ -224,6 +224,33 @@ function normalizeDbToken(value: string) {
     .replace(/[\u0000-\u001F\u007F]/g, "")
     .replace(/\s+/g, "")
     .replace(/[^A-Z0-9-]/g, "");
+}
+
+function normalizeTicketToken(value: string) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/^\][A-Z0-9]{2}/i, "")
+    .replace(/[“”"'`´]/g, "")
+    .replace(/[–—]/g, "-")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function ticketTokenMatchesDb(qrTokenFromDb: string, rawScannedValue: string) {
+  const db = normalizeTicketToken(qrTokenFromDb);
+  const scanned = normalizeTicketToken(rawScannedValue);
+  const extracted = normalizeTicketToken(extractRawToken(rawScannedValue));
+
+  return Boolean(
+    db &&
+      (db === scanned ||
+        db === extracted ||
+        scanned.endsWith(db) ||
+        extracted.endsWith(db) ||
+        db.endsWith(scanned) ||
+        db.endsWith(extracted))
+  );
 }
 
 // 🔥 Token limpio para el RPC de barra.
@@ -818,9 +845,146 @@ if (xpError) {
       by: string
     ): Promise<EntryScanResult> => {
       try {
-        // ⚡ ENTRADA FAST:
-        // Gold + Lista Free se validan directo en Supabase.
-        // No buscamos Gold en React porque los QR pueden venir como URL completa.
+        // 🎟️ 1) PRIMERO: intentamos validar anticipada paga.
+        // Si el QR es HOLY_TICKET_..., no pasa por lista free.
+        const { data: ticketCandidates, error: ticketSearchError } = await supabase
+          .from("tickets")
+          .select("*")
+          .eq("event_id", eventId)
+          .limit(2000);
+
+        if (ticketSearchError) {
+          console.error("TICKET SEARCH ERROR:", ticketSearchError);
+        }
+
+        const ticket = (ticketCandidates || []).find((row: any) =>
+          ticketTokenMatchesDb(row.qr_token || "", rawValue)
+        );
+
+        if (ticket) {
+          const scanBasePayload: any = {
+            ticket_id: ticket.id,
+            event_id: eventId,
+            qr_token: ticket.qr_token || rawValue,
+            scanned_by: by,
+          };
+
+          const fullName =
+            `${ticket.buyer_first_name || ""} ${ticket.buyer_last_name || ""}`.trim() ||
+            ticket.ticket_code ||
+            "Entrada anticipada";
+
+          const { data: batchData } = await supabase
+            .from("ticket_batches")
+            .select("name")
+            .eq("id", ticket.batch_id)
+            .maybeSingle();
+
+          const batchName = (batchData as any)?.name || "Anticipada";
+
+          if (String(ticket.payment_status || "").toLowerCase() !== "paid") {
+            await (supabase as any).from("ticket_scans").insert({
+              ...scanBasePayload,
+              result: "unpaid_ticket",
+            });
+
+            return {
+              success: false,
+              result: "unpaid_ticket",
+              message: "Entrada no pagada",
+              color: "yellow",
+              rrppName: `${fullName} · ${batchName}`,
+            };
+          }
+
+          if (
+            String(ticket.status || "").toLowerCase() === "cancelled" ||
+            String(ticket.status || "").toLowerCase() === "canceled"
+          ) {
+            await (supabase as any).from("ticket_scans").insert({
+              ...scanBasePayload,
+              result: "cancelled_ticket",
+            });
+
+            return {
+              success: false,
+              result: "invalid_qr",
+              message: "Entrada cancelada",
+              color: "red",
+              rrppName: `${fullName} · ${batchName}`,
+            };
+          }
+
+          if (ticket.entry_used_at || String(ticket.status || "").toLowerCase() === "used") {
+            await (supabase as any).from("ticket_scans").insert({
+              ...scanBasePayload,
+              result: "used_ticket",
+            });
+
+            return {
+              success: false,
+              result: "used_qr",
+              message: fullName,
+              color: "red",
+              rrppName: `Anticipada ya usada · ${batchName}`,
+            };
+          }
+
+          const usedAt = new Date().toISOString();
+
+          const { error: updateTicketError } = await (supabase as any)
+            .from("tickets")
+            .update({
+              entry_used_at: usedAt,
+              entry_used_by: by,
+              status: "used",
+            })
+            .eq("id", ticket.id);
+
+          if (updateTicketError) {
+            console.error("TICKET UPDATE ERROR:", updateTicketError);
+
+            await (supabase as any).from("ticket_scans").insert({
+              ...scanBasePayload,
+              result: "ticket_update_error",
+            });
+
+            return {
+              success: false,
+              result: "invalid_qr",
+              message: "No se pudo marcar la entrada",
+              color: "red",
+              rrppName: fullName,
+            };
+          }
+
+          await (supabase as any).from("ticket_scans").insert({
+            ...scanBasePayload,
+            result: "ticket_entry",
+          });
+
+          let rrppLabel = "HOLY directo";
+
+          if (ticket.rrpp_id) {
+            const { data: rrppData } = await supabase
+              .from("rrpp_profiles")
+              .select("display_name")
+              .eq("id", ticket.rrpp_id)
+              .maybeSingle();
+
+            rrppLabel = (rrppData as any)?.display_name || "RRPP";
+          }
+
+          return {
+            success: true,
+            result: "ticket_entry",
+            message: fullName,
+            color: "green",
+            rrppName: `${batchName} · ${rrppLabel}`,
+          };
+        }
+
+        // ⚡ 2) SI NO ES ANTICIPADA: Gold + Lista Free por RPC existente.
         const { data, error } = await supabase.rpc("scan_entry_qr_fast", {
           p_token: rawValue,
           p_event_id: eventId,
@@ -1237,13 +1401,16 @@ showSecurityDisplay(result);
               playBeep(true);
               vibrate(120);
 
+              const isTicketEntry = result.result === "ticket_entry";
+
               setModalState({
                 open: true,
                 status: "success",
-                title: "ENTRA FREE",
+                title: isTicketEntry ? "ENTRA ANTICIPADA" : "ENTRA FREE",
                 message: result.message,
-                detail:
-                  result.clientPointsAdded && result.clientPointsAdded > 0
+                detail: isTicketEntry
+                  ? result.rrppName || "Entrada pagada"
+                  : result.clientPointsAdded && result.clientPointsAdded > 0
                     ? `RRPP: ${result.rrppName || "—"} · +${result.clientPointsAdded} al cliente`
                     : result.rrppName
                       ? `RRPP: ${result.rrppName} · sin puntos extra (ya cobró este evento)`
@@ -1281,7 +1448,9 @@ showSecurityDisplay(result);
                   ? "QR VENCIDO"
                   : result.result === "used_qr"
                     ? "QR YA USADO"
-                    : "NO VÁLIDO",
+                    : result.result === "unpaid_ticket"
+                      ? "ENTRADA NO PAGADA"
+                      : "NO VÁLIDO",
               message: result.message,
               detail:
                 result.result === "invalid_qr"
@@ -1495,8 +1664,10 @@ showSecurityDisplay(result);
   const labels: Record<string, string> = {
     valid_entry: "ENTRA FREE ✓",
     gold_entry: "✦ GOLD ENTRY",
+    ticket_entry: "ENTRA ANTICIPADA ✓",
     used_qr: "QR YA USADO ✗",
     expired_qr: "QR VENCIDO ⏱",
+    unpaid_ticket: "ENTRADA NO PAGADA ⚠",
     invalid_qr: "QR INVÁLIDO ✗",
   };
 
@@ -1719,10 +1890,11 @@ showSecurityDisplay(result);
 
   if (securityDisplay) {
     const isGold = securityDisplay.type === "gold_entry";
-    const isValid = securityDisplay.type === "valid_entry";
+    const isTicket = securityDisplay.type === "ticket_entry";
+    const isValid = securityDisplay.type === "valid_entry" || isTicket;
     const isUsed = securityDisplay.type === "used_qr";
     const isExpired = securityDisplay.type === "expired_qr";
-    const isInvalid = securityDisplay.type === "invalid_qr";
+    const isInvalid = securityDisplay.type === "invalid_qr" || securityDisplay.type === "unpaid_ticket";
 
     const screenClass =
       securityDisplay.color === "green"
@@ -1745,13 +1917,17 @@ showSecurityDisplay(result);
 
     const subtitle = isGold
       ? "VIP ENTRY"
-      : isValid
-        ? "LISTA FREE"
-        : isUsed
-          ? "QR YA UTILIZADO"
-          : isExpired
-            ? "QR VENCIDO"
-            : "QR INVÁLIDO";
+      : isTicket
+        ? "ANTICIPADA"
+        : isValid
+          ? "LISTA FREE"
+          : isUsed
+            ? "QR YA UTILIZADO"
+            : isExpired
+              ? "QR VENCIDO"
+              : securityDisplay.type === "unpaid_ticket"
+                ? "ENTRADA NO PAGADA"
+                : "QR INVÁLIDO";
 
     return (
       <div

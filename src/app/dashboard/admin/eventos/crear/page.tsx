@@ -7,6 +7,8 @@ import {
   CalendarDays,
   Clock3,
   Plus,
+  Trash2,
+  Ticket,
   Power,
   Lock,
   RefreshCw,
@@ -32,21 +34,49 @@ type EventRow = {
   event_image_url?: string | null;
 };
 
+type TicketBatchForm = {
+  id: string;
+  name: string;
+  price: string;
+  rrpp_commission: string;
+  stock: string;
+};
+
 type FormState = {
   name: string;
   event_start: string;
   event_end: string;
   registration_until: string;
   qr_entry_until: string;
+  tickets_enabled: boolean;
+  ticket_batches: TicketBatchForm[];
 };
 
-const initialForm: FormState = {
-  name: "",
-  event_start: "",
-  event_end: "",
-  registration_until: "",
-  qr_entry_until: "",
-};
+function createEmptyBatch(order = 1): TicketBatchForm {
+  return {
+    id: typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`,
+    name: `Anticipada ${order}° tanda`,
+    price: "",
+    rrpp_commission: "",
+    stock: "",
+  };
+}
+
+function makeInitialForm(): FormState {
+  return {
+    name: "",
+    event_start: "",
+    event_end: "",
+    registration_until: "",
+    qr_entry_until: "",
+    tickets_enabled: false,
+    ticket_batches: [createEmptyBatch(1)],
+  };
+}
+
+const initialForm: FormState = makeInitialForm();
 
 export default function AdminEventosPage() {
   const supabase = useMemo(() => getSupabaseClient(), []);
@@ -148,6 +178,52 @@ export default function AdminEventosPage() {
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateTicketBatch(
+    batchId: string,
+    key: keyof Omit<TicketBatchForm, "id">,
+    value: string
+  ) {
+    setForm((prev) => ({
+      ...prev,
+      ticket_batches: prev.ticket_batches.map((batch) =>
+        batch.id === batchId ? { ...batch, [key]: value } : batch
+      ),
+    }));
+  }
+
+  function addTicketBatch() {
+    setForm((prev) => ({
+      ...prev,
+      ticket_batches: [
+        ...prev.ticket_batches,
+        createEmptyBatch(prev.ticket_batches.length + 1),
+      ],
+    }));
+  }
+
+  function removeTicketBatch(batchId: string) {
+    setForm((prev) => {
+      if (prev.ticket_batches.length <= 1) return prev;
+
+      return {
+        ...prev,
+        ticket_batches: prev.ticket_batches.filter((batch) => batch.id !== batchId),
+      };
+    });
+  }
+
+  function parseMoney(value: string) {
+    const normalized = value.replace(/[^0-9]/g, "");
+    if (!normalized) return 0;
+    return Number(normalized);
+  }
+
+  function parseStock(value: string) {
+    const normalized = value.replace(/[^0-9]/g, "");
+    if (!normalized) return null;
+    return Number(normalized);
   }
 
   function toIso(value: string) {
@@ -332,6 +408,48 @@ export default function AdminEventosPage() {
       return;
     }
 
+    if (form.tickets_enabled) {
+      if (form.ticket_batches.length === 0) {
+        setErrorMessage("Agregá al menos una tanda de anticipadas.");
+        return;
+      }
+
+      for (const [index, batch] of form.ticket_batches.entries()) {
+        const price = parseMoney(batch.price);
+        const commission = parseMoney(batch.rrpp_commission);
+        const stock = parseStock(batch.stock);
+
+        if (!batch.name.trim()) {
+          setErrorMessage(`Poné un nombre para la tanda ${index + 1}.`);
+          return;
+        }
+
+        if (price <= 0) {
+          setErrorMessage(`Poné un precio válido para la tanda ${index + 1}.`);
+          return;
+        }
+
+        if (commission < 0) {
+          setErrorMessage(`La comisión de la tanda ${index + 1} no puede ser negativa.`);
+          return;
+        }
+
+        if (commission >= price) {
+          setErrorMessage(
+            `La comisión RRPP de la tanda ${index + 1} tiene que ser menor al precio.`
+          );
+          return;
+        }
+
+        if (stock !== null && stock <= 0) {
+          setErrorMessage(
+            `El stock de la tanda ${index + 1} tiene que ser mayor a 0 o quedar vacío.`
+          );
+          return;
+        }
+      }
+    }
+
     setSaving(true);
 
     let eventImageUrl: string | null = null;
@@ -374,18 +492,52 @@ export default function AdminEventosPage() {
       created_by: user?.id ?? null,
     };
 
-    const { error } = await (supabase as any).from("events").insert(payload);
+    const { data: createdEvent, error } = await (supabase as any)
+      .from("events")
+      .insert(payload)
+      .select("id")
+      .single();
 
-    if (error) {
+    if (error || !createdEvent?.id) {
       setErrorMessage(
-        error.message || "No se pudo crear el evento. Revisá la tabla events."
+        error?.message || "No se pudo crear el evento. Revisá la tabla events."
       );
       setSaving(false);
       return;
     }
 
-    setMessage("Evento creado correctamente.");
-    setForm(initialForm);
+    if (form.tickets_enabled) {
+      const batchesPayload = form.ticket_batches.map((batch, index) => ({
+        event_id: createdEvent.id,
+        name: batch.name.trim(),
+        batch_order: index + 1,
+        price: parseMoney(batch.price),
+        rrpp_commission: parseMoney(batch.rrpp_commission),
+        stock: parseStock(batch.stock),
+        sold_count: 0,
+        active: true,
+      }));
+
+      const { error: batchesError } = await (supabase as any)
+        .from("ticket_batches")
+        .insert(batchesPayload);
+
+      if (batchesError) {
+        setErrorMessage(
+          batchesError.message ||
+            "El evento se creó, pero no se pudieron guardar las tandas. Revisá ticket_batches."
+        );
+        setSaving(false);
+        return;
+      }
+    }
+
+    setMessage(
+      form.tickets_enabled
+        ? "Evento creado correctamente con anticipadas."
+        : "Evento creado correctamente."
+    );
+    setForm(makeInitialForm());
     setEventImageFile(null);
     setEventImagePreview("");
     await loadEvents();
@@ -648,6 +800,145 @@ export default function AdminEventosPage() {
               </label>
             </div>
 
+            <div className="mt-5 rounded-3xl border border-yellow-400/20 bg-yellow-500/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-2xl bg-yellow-400/15 p-2 text-yellow-200">
+                    <Ticket className="h-5 w-5" />
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-black uppercase tracking-[0.22em] text-yellow-100">
+                      Anticipadas
+                    </div>
+                    <p className="mt-1 text-xs text-white/55">
+                      Activá venta de entradas por tandas. El link oficial y los links RRPP se conectan después.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateForm("tickets_enabled", !form.tickets_enabled)
+                  }
+                  className={`rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-[0.18em] transition ${
+                    form.tickets_enabled
+                      ? "bg-emerald-500 text-white hover:bg-emerald-400"
+                      : "border border-white/10 bg-white/5 text-white/65 hover:bg-white/10"
+                  }`}
+                >
+                  {form.tickets_enabled ? "Activadas" : "Desactivadas"}
+                </button>
+              </div>
+
+              {form.tickets_enabled && (
+                <div className="mt-4 space-y-3">
+                  {form.ticket_batches.map((batch, index) => (
+                    <div
+                      key={batch.id}
+                      className="rounded-2xl border border-white/10 bg-black/30 p-3"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-black uppercase tracking-[0.2em] text-white/75">
+                            {index + 1}° tanda
+                          </div>
+                          <div className="mt-1 text-[11px] text-white/40">
+                            Se vende en este orden. Si se agota, pasa a la siguiente.
+                          </div>
+                        </div>
+
+                        {form.ticket_batches.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeTicketBatch(batch.id)}
+                            className="rounded-xl border border-red-400/20 bg-red-500/10 p-2 text-red-200 transition hover:bg-red-500/20"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="block sm:col-span-2">
+                          <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+                            Nombre tanda
+                          </span>
+                          <input
+                            value={batch.name}
+                            onChange={(e) =>
+                              updateTicketBatch(batch.id, "name", e.target.value)
+                            }
+                            placeholder="Ej: Anticipada 1° tanda"
+                            className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-white outline-none transition placeholder:text-white/25 focus:border-yellow-300/50"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+                            Precio
+                          </span>
+                          <input
+                            inputMode="numeric"
+                            value={batch.price}
+                            onChange={(e) =>
+                              updateTicketBatch(batch.id, "price", e.target.value)
+                            }
+                            placeholder="8000"
+                            className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-white outline-none transition placeholder:text-white/25 focus:border-yellow-300/50"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+                            Comisión RRPP
+                          </span>
+                          <input
+                            inputMode="numeric"
+                            value={batch.rrpp_commission}
+                            onChange={(e) =>
+                              updateTicketBatch(
+                                batch.id,
+                                "rrpp_commission",
+                                e.target.value
+                              )
+                            }
+                            placeholder="1000"
+                            className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-white outline-none transition placeholder:text-white/25 focus:border-yellow-300/50"
+                          />
+                        </label>
+
+                        <label className="block sm:col-span-2">
+                          <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+                            Stock
+                          </span>
+                          <input
+                            inputMode="numeric"
+                            value={batch.stock}
+                            onChange={(e) =>
+                              updateTicketBatch(batch.id, "stock", e.target.value)
+                            }
+                            placeholder="Vacío = ilimitado"
+                            className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-white outline-none transition placeholder:text-white/25 focus:border-yellow-300/50"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={addTicketBatch}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-yellow-300/20 bg-yellow-400/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-100 transition hover:bg-yellow-400/15"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Agregar tanda
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4 text-xs text-white/50">
               Ejemplo ideal: inicio 24/04 23:00 · lista hasta 25/04 02:30 · QR
               hasta 25/04 04:00.
@@ -665,7 +956,7 @@ export default function AdminEventosPage() {
 
               <button
                 onClick={() => {
-                  setForm(initialForm);
+                  setForm(makeInitialForm());
                   setEventImageFile(null);
                   setEventImagePreview("");
                 }}
