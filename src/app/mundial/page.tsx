@@ -440,14 +440,20 @@ export default function MundialPage() {
 
     setSubmitting(true)
 
-   const { data, error } = await supabase.rpc(
-  'submit_worldcup_prediction' as any,
-  {
-    p_match_id: selectedMatch.id,
-    p_home_score: parsedHome,
-    p_away_score: parsedAway,
-  } as any
-)
+    const { data: rpcData, error } = await supabase.rpc(
+      'submit_worldcup_prediction' as any,
+      {
+        p_match_id: selectedMatch.id,
+        p_home_score: parsedHome,
+        p_away_score: parsedAway,
+      } as any
+    )
+
+    const data = rpcData as {
+      success?: boolean
+      error?: string
+      prediction_id?: string
+    } | null
 
     if (error) {
       console.error('Error submit prediction:', error)
@@ -711,7 +717,7 @@ export default function MundialPage() {
           </div>
         )}
 
-       <section className="mt-5 overflow-hidden rounded-[24px] border border-yellow-300/15 bg-gradient-to-br from-yellow-400/8 via-violet-950/25 to-black px-4 py-4 text-center shadow-[0_0_30px_rgba(250,204,21,0.08)]">
+        <section className="mt-5 overflow-hidden rounded-[24px] border border-yellow-300/15 bg-gradient-to-br from-yellow-400/8 via-violet-950/25 to-black px-4 py-4 text-center shadow-[0_0_30px_rgba(250,204,21,0.08)]">
   <div className="flex items-center justify-center gap-3">
     <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-yellow-300/20 bg-yellow-300/10 text-3xl shadow-[0_0_22px_rgba(250,204,21,0.14)]">
       🏆

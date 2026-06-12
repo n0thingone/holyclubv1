@@ -31,11 +31,6 @@ type MatchRow = {
   display_order: number;
 };
 
-type PredictionStats = {
-  match_id: string;
-  total: number;
-};
-
 function normalizeFlagKey(value?: string | null) {
   return String(value || "").trim().toUpperCase();
 }
@@ -136,7 +131,7 @@ export default function AdminMundialPage() {
   const isAdmin = role === "admin" || role === "cashier" || role === "cajero";
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
   async function loadData() {
@@ -202,14 +197,19 @@ export default function AdminMundialPage() {
     setMessage("");
     setErrorMessage("");
 
-const { data, error } = await supabase.rpc(
-  'finish_worldcup_match' as any,
-  {
-    p_match_id: match.id,
-    p_home_score: home,
-    p_away_score: away,
-  } as any
-)
+    const { data: rpcData, error } = await supabase.rpc(
+      "set_worldcup_match_status" as any,
+      {
+        p_match_id: matchId,
+        p_status: status,
+      } as any
+    );
+
+    const data = rpcData as {
+      success?: boolean;
+      error?: string;
+      status?: string;
+    } | null;
 
     if (error) {
       console.error("Error cambiando estado:", error);
@@ -219,7 +219,11 @@ const { data, error } = await supabase.rpc(
     }
 
     if (!data?.success) {
-      setErrorMessage(data?.error === "not_admin" ? "No tenés permisos de admin." : "No se pudo cambiar el estado.");
+      setErrorMessage(
+        data?.error === "not_admin"
+          ? "No tenés permisos de admin."
+          : "No se pudo cambiar el estado."
+      );
       setWorkingId(null);
       return;
     }
@@ -254,11 +258,22 @@ const { data, error } = await supabase.rpc(
 
     setWorkingId(match.id);
 
-    const { data, error } = await supabase.rpc("finish_worldcup_match", {
-      p_match_id: match.id,
-      p_home_score: home,
-      p_away_score: away,
-    });
+    const { data: rpcData, error } = await supabase.rpc(
+      "finish_worldcup_match" as any,
+      {
+        p_match_id: match.id,
+        p_home_score: home,
+        p_away_score: away,
+      } as any
+    );
+
+    const data = rpcData as {
+      success?: boolean;
+      error?: string;
+      participation_rewards?: number;
+      exact_score_winners?: number;
+      total_points_awarded?: number;
+    } | null;
 
     if (error) {
       console.error("Error finalizando partido:", error);
@@ -268,7 +283,11 @@ const { data, error } = await supabase.rpc(
     }
 
     if (!data?.success) {
-      setErrorMessage(data?.error === "not_admin" ? "No tenés permisos de admin." : "No se pudo finalizar el partido.");
+      setErrorMessage(
+        data?.error === "not_admin"
+          ? "No tenés permisos de admin."
+          : "No se pudo finalizar el partido."
+      );
       setWorkingId(null);
       return;
     }
