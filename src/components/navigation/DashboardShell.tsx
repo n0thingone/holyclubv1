@@ -87,9 +87,30 @@ export default function DashboardShell({
 
   const credits = Number(liveCredits ?? 0);
 
-  useEffect(() => {
-    setLiveCredits(Number((profile as any)?.holy_points_balance ?? 0));
-  }, [profile?.holy_points_balance]);
+useEffect(() => {
+  async function loadLiveCredits() {
+    if (!user?.id) {
+      setLiveCredits(0);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("holy_points_balance")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error cargando créditos reales en DashboardShell:", error);
+      setLiveCredits(Number((profile as any)?.holy_points_balance ?? 0));
+      return;
+    }
+
+    setLiveCredits(Number(data?.holy_points_balance ?? 0));
+  }
+
+  void loadLiveCredits();
+}, [user?.id, pathname, menuOpen, supabase]);
 
   useEffect(() => {
     function handleCreditsUpdate(event: Event) {
@@ -297,6 +318,11 @@ export default function DashboardShell({
   href: "/dashboard/admin/auditoria",
   label: "Auditoría",
   icon: Shield,
+},
+{
+  href: "/dashboard/admin/mundial",
+  label: "Admin Mundial",
+  icon: Trophy,
 },
     {
       href: "/dashboard/admin/eventos/resumen",

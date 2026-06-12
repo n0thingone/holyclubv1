@@ -7,8 +7,6 @@ import {
   Lock,
   Gift,
   Sparkles,
-  Instagram,
-  MessageCircle,
   ChevronLeft,
   ChevronRight,
   Beer,
@@ -20,6 +18,7 @@ import {
   Ticket,
   Shuffle,
   UserPlus,
+  Trophy,
 } from "lucide-react";
 
 import DashboardShell from "@/components/navigation/DashboardShell";
@@ -46,6 +45,28 @@ type RRPPRow = {
     full_name: string | null;
     email: string | null;
   } | null;
+};
+
+type WorldCupMatch = {
+  id: string;
+  home_team: string;
+  away_team: string;
+  home_flag: string | null;
+  away_flag: string | null;
+  kickoff_at: string;
+  voting_closes_at: string;
+  status: string;
+  home_score: number | null;
+  away_score: number | null;
+  display_order: number;
+};
+
+type WorldCupPrediction = {
+  id: string;
+  match_id: string;
+  predicted_home_score: number;
+  predicted_away_score: number;
+  reward_status: string | null;
 };
 
 function getIsGuest() {
@@ -212,6 +233,109 @@ function getFrameByLevel(level: number) {
   return "border-white/10 bg-white/5";
 }
 
+function normalizeWorldCupFlag(value?: string | null) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function getWorldCupFlagCode(team: string, flag?: string | null) {
+  const valueKey = normalizeWorldCupFlag(flag);
+  const teamKey = normalizeWorldCupFlag(team);
+  const key = valueKey || teamKey;
+
+  if (key === "AR" || key === "ARG" || key === "ARGENTINA") return "ar";
+  if (key === "DZ" || key === "DZA" || key === "ARGELIA") return "dz";
+  if (key === "AT" || key === "AUT" || key === "AUSTRIA") return "at";
+  if (key === "JO" || key === "JOR" || key === "JORDANIA") return "jo";
+
+  if (teamKey === "ARGENTINA") return "ar";
+  if (teamKey === "ARGELIA") return "dz";
+  if (teamKey === "AUSTRIA") return "at";
+  if (teamKey === "JORDANIA") return "jo";
+
+  return null;
+}
+
+function WorldCupFlag({
+  team,
+  flag,
+}: {
+  team: string;
+  flag?: string | null;
+}) {
+  const code = getWorldCupFlagCode(team, flag);
+
+  if (!code) {
+    return (
+      <div className="flex h-9 w-11 items-center justify-center rounded-xl border border-yellow-300/20 bg-yellow-300/10 text-2xl">
+        🏆
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={`https://flagcdn.com/w80/${code}.png`}
+      alt={team}
+      className="h-9 w-11 rounded-xl object-cover shadow"
+    />
+  );
+}
+
+function formatWorldCupDate(value: string) {
+  return new Intl.DateTimeFormat("es-AR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
+function getWorldCupPredictionForMatch(
+  predictions: WorldCupPrediction[],
+  matchId: string
+) {
+  return predictions.find((prediction) => prediction.match_id === matchId) || null;
+}
+
+function getWorldCupCardLabel(match: WorldCupMatch, prediction: WorldCupPrediction | null) {
+  if (match.status === "finished" && prediction) {
+    const exact =
+      prediction.predicted_home_score === match.home_score &&
+      prediction.predicted_away_score === match.away_score;
+
+    return exact ? "GANASTE" : "NO ACERTASTE";
+  }
+
+  if (prediction) return "VOTADO";
+  if (match.status === "open") return "VOTAR";
+  if (match.status === "conditional") return "SI CLASIFICA";
+  if (match.status === "finished") return "FINALIZADO";
+
+  return "PRÓXIMAMENTE";
+}
+
+function getWorldCupCardClass(match: WorldCupMatch, prediction: WorldCupPrediction | null) {
+  if (match.status === "finished" && prediction) {
+    const exact =
+      prediction.predicted_home_score === match.home_score &&
+      prediction.predicted_away_score === match.away_score;
+
+    if (exact) {
+      return "border-emerald-300/35 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.22),transparent_35%),linear-gradient(180deg,rgba(16,185,129,0.13),rgba(255,255,255,0.03))]";
+    }
+
+    return "border-red-300/35 bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.22),transparent_35%),linear-gradient(180deg,rgba(239,68,68,0.13),rgba(255,255,255,0.03))]";
+  }
+
+  if (match.status === "open") {
+    return "border-emerald-300/28 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.20),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(16,185,129,0.04))]";
+  }
+
+  return "border-violet-300/20 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.20),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(139,92,246,0.04))]";
+}
+
 function HolyProgressHUD() {
   const supabase = useMemo(() => getSupabaseClient(), []);
   const { profile } = useAuth();
@@ -339,16 +463,15 @@ export default function PuntosHomePage() {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [rrpps, setRrpps] = useState<RRPPRow[]>([]);
   const [randomRRPP, setRandomRRPP] = useState<RRPPRow | null>(null);
-  const [activeRewardIndex, setActiveRewardIndex] = useState(0);
-  const [isUserInteracting, setIsUserInteracting] = useState(false);
 
-  const sliderRef = useRef<HTMLDivElement | null>(null);
-  const autoScrollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const interactionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [worldCupMatches, setWorldCupMatches] = useState<WorldCupMatch[]>([]);
+  const [worldCupPredictions, setWorldCupPredictions] = useState<WorldCupPrediction[]>([]);
+  const [activeWorldCupIndex, setActiveWorldCupIndex] = useState(0);
+
+  const worldCupSliderRef = useRef<HTMLDivElement | null>(null);
 
   const realBalance = isGuest ? 0 : Number((profile as any)?.holy_points_balance ?? 0);
 
-  const activeReward = rewards[activeRewardIndex] ?? null;
   const nextGoal = getNextGoal(realBalance);
   const progressToGoal = nextGoal
     ? Math.max(0, Math.min(100, (realBalance / nextGoal) * 100))
@@ -362,18 +485,18 @@ export default function PuntosHomePage() {
     async function loadHomeData() {
       setLoading(true);
 
-  const { data: rrppData, error: rrppError } = await supabase
-  .from("rrpp_profiles")
-  .select(`
-    slug,
-    profiles (
-      id,
-      full_name,
-      email
-    )
-  `)
-  .eq("active", true)
-  .not("slug", "is", null);
+      const { data: rrppData, error: rrppError } = await supabase
+        .from("rrpp_profiles")
+        .select(`
+          slug,
+          profiles (
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq("active", true)
+        .not("slug", "is", null);
 
       if (rrppError) {
         console.error("Error cargando RRPP:", rrppError);
@@ -402,13 +525,12 @@ export default function PuntosHomePage() {
             .eq("status", "active")
             .maybeSingle(),
           supabase
-        
-  .from("holy_rewards")
-  .select("id,name,description,points_cost")
-  .eq("active", true)
-  .gt("points_cost", 0) // 👈 ESTE ES EL FIX
-  .order("points_cost", { ascending: true })
-  .limit(8),
+            .from("holy_rewards")
+            .select("id,name,description,points_cost")
+            .eq("active", true)
+            .gt("points_cost", 0)
+            .order("points_cost", { ascending: true })
+            .limit(8),
         ]);
 
       setActiveEvent((eventData as EventRow | null) ?? null);
@@ -424,20 +546,44 @@ export default function PuntosHomePage() {
     void loadHomeData();
   }, [isGuest, supabase]);
 
-  function markUserInteraction() {
-    setIsUserInteracting(true);
+  useEffect(() => {
+    async function loadWorldCupHome() {
+      const { data: matchesData, error: matchesError } = await supabase
+        .from("worldcup_matches_public")
+        .select("*")
+        .order("display_order", { ascending: true });
 
-    if (interactionTimeoutRef.current) {
-      clearTimeout(interactionTimeoutRef.current);
+      if (matchesError) {
+        console.error("Error cargando partidos Mundial en Home:", matchesError);
+        setWorldCupMatches([]);
+      } else {
+        setWorldCupMatches((matchesData ?? []) as WorldCupMatch[]);
+      }
+
+      if (!profile?.id || isGuest) {
+        setWorldCupPredictions([]);
+        return;
+      }
+
+      const { data: predictionsData, error: predictionsError } = await supabase
+        .from("worldcup_predictions")
+        .select("id,match_id,predicted_home_score,predicted_away_score,reward_status")
+        .eq("user_id", profile.id);
+
+      if (predictionsError) {
+        console.error("Error cargando predicciones Mundial en Home:", predictionsError);
+        setWorldCupPredictions([]);
+        return;
+      }
+
+      setWorldCupPredictions((predictionsData ?? []) as WorldCupPrediction[]);
     }
 
-    interactionTimeoutRef.current = setTimeout(() => {
-      setIsUserInteracting(false);
-    }, 4500);
-  }
+    void loadWorldCupHome();
+  }, [profile?.id, isGuest, supabase]);
 
-  function scrollToCard(index: number) {
-    const container = sliderRef.current;
+  function scrollToWorldCupCard(index: number) {
+    const container = worldCupSliderRef.current;
     if (!container) return;
 
     const children = container.children;
@@ -450,23 +596,21 @@ export default function PuntosHomePage() {
       behavior: "smooth",
     });
 
-    setActiveRewardIndex(index);
+    setActiveWorldCupIndex(index);
   }
 
-  function goPrevReward() {
-    if (rewards.length === 0) return;
-    markUserInteraction();
-    scrollToCard(Math.max(activeRewardIndex - 1, 0));
+  function goPrevWorldCup() {
+    if (worldCupMatches.length === 0) return;
+    scrollToWorldCupCard(Math.max(activeWorldCupIndex - 1, 0));
   }
 
-  function goNextReward() {
-    if (rewards.length === 0) return;
-    markUserInteraction();
-    scrollToCard(Math.min(activeRewardIndex + 1, rewards.length - 1));
+  function goNextWorldCup() {
+    if (worldCupMatches.length === 0) return;
+    scrollToWorldCupCard(Math.min(activeWorldCupIndex + 1, worldCupMatches.length - 1));
   }
 
-  function handleSliderScroll() {
-    const container = sliderRef.current;
+  function handleWorldCupSliderScroll() {
+    const container = worldCupSliderRef.current;
     if (!container) return;
 
     const children = Array.from(container.children) as HTMLElement[];
@@ -487,31 +631,8 @@ export default function PuntosHomePage() {
       }
     });
 
-    setActiveRewardIndex((prev) => (prev !== closestIndex ? closestIndex : prev));
+    setActiveWorldCupIndex((prev) => (prev !== closestIndex ? closestIndex : prev));
   }
-
-  useEffect(() => {
-    if (!rewards.length || isUserInteracting) return;
-
-    autoScrollRef.current = setInterval(() => {
-      setActiveRewardIndex((prev) => {
-        const nextIndex = prev >= rewards.length - 1 ? 0 : prev + 1;
-        scrollToCard(nextIndex);
-        return nextIndex;
-      });
-    }, 3200);
-
-    return () => {
-      if (autoScrollRef.current) clearInterval(autoScrollRef.current);
-    };
-  }, [rewards.length, isUserInteracting]);
-
-  useEffect(() => {
-    return () => {
-      if (autoScrollRef.current) clearInterval(autoScrollRef.current);
-      if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
-    };
-  }, []);
 
   return (
     <DashboardShell title="HOME">
@@ -720,40 +841,44 @@ export default function PuntosHomePage() {
           <div className="holy-section-divider my-1 flex items-center gap-3 px-2">
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-fuchsia-300/25 to-transparent" />
             <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[9px] font-black uppercase tracking-[0.22em] text-white/45">
-              <Sparkles className="h-3 w-3 text-fuchsia-300" />
-              Canjes y beneficios
+              <Trophy className="h-3 w-3 text-yellow-300" />
+              HOLY Mundial
             </div>
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-fuchsia-300/25 to-transparent" />
           </div>
 
-          <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(217,70,239,0.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-2">
-            <div className="pointer-events-none absolute left-1/2 top-0 h-24 w-40 -translate-x-1/2 rounded-full bg-fuchsia-500/15 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[26px] border border-yellow-300/15 bg-[radial-gradient(circle_at_top,rgba(250,204,21,0.12),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(217,70,239,0.16),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] p-2">
+            <div className="pointer-events-none absolute left-1/2 top-0 h-24 w-40 -translate-x-1/2 rounded-full bg-yellow-400/12 blur-3xl" />
 
             <div className="relative z-10">
-              <div className="mb-1 flex items-start justify-between gap-2">
+              <div className="mb-2 flex items-start justify-between gap-2">
                 <div>
-                  <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-200">
-                    <Zap size={12} />
-                    Top canje
+                  <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-yellow-300/20 bg-yellow-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200">
+                    <Trophy size={12} />
+                    Votación activa
                   </div>
 
                   <h3 className="text-lg font-black leading-none text-white">
-                    {activeReward?.name ?? "Canjes HOLY"}
+                    HOLY Mundial
                   </h3>
+
+                  <p className="mt-1 text-[11px] font-bold text-white/45">
+                    Adiviná resultados de Argentina y ganá créditos.
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={goPrevReward}
-                    disabled={activeRewardIndex === 0}
+                    onClick={goPrevWorldCup}
+                    disabled={activeWorldCupIndex === 0}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/80 disabled:opacity-35"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
 
                   <button
-                    onClick={goNextReward}
-                    disabled={rewards.length === 0 || activeRewardIndex === rewards.length - 1}
+                    onClick={goNextWorldCup}
+                    disabled={worldCupMatches.length === 0 || activeWorldCupIndex === worldCupMatches.length - 1}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/80 disabled:opacity-35"
                   >
                     <ChevronRight className="h-4 w-4" />
@@ -761,114 +886,138 @@ export default function PuntosHomePage() {
                 </div>
               </div>
 
-              {rewards.length === 0 ? (
+              {worldCupMatches.length === 0 ? (
                 <div className="rounded-[22px] border border-white/10 bg-white/5 px-4 py-5 text-center text-sm text-white/50">
-                  No hay rewards disponibles ahora.
+                  No hay partidos cargados todavía.
                 </div>
               ) : (
                 <>
                   <div
-                    ref={sliderRef}
-                    onScroll={handleSliderScroll}
-                    onTouchStart={markUserInteraction}
-                    onMouseDown={markUserInteraction}
+                    ref={worldCupSliderRef}
+                    onScroll={handleWorldCupSliderScroll}
                     className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                   >
-                    {rewards.map((reward, index) => {
-                      const isActive = index === activeRewardIndex;
-                      const tier = getTierStyles(reward.points_cost, isActive);
-                      const tierLabel = getTierLabel(reward.points_cost);
-                      const RewardIcon = getRewardIcon(reward.name);
+                    {worldCupMatches.map((match) => {
+                      const prediction = getWorldCupPredictionForMatch(worldCupPredictions, match.id);
+                      const label = getWorldCupCardLabel(match, prediction);
+                      const cardClass = getWorldCupCardClass(match, prediction);
 
                       return (
-                        <div
-                          key={reward.id}
-                          className="min-w-0 shrink-0 basis-[55%] snap-center"
+                        <Link
+                          key={match.id}
+                          href="/mundial"
+                          className="min-w-0 shrink-0 basis-[78%] snap-center"
                         >
-                          <div
-                            className={`relative overflow-hidden rounded-[22px] border p-3 transition duration-300 ${tier.wrap} ${
-                              isActive
-                                ? "shadow-[0_0_35px_rgba(217,70,239,0.16)]"
-                                : ""
-                            }`}
-                          >
-                            <div
-                              className={`pointer-events-none absolute -left-8 top-0 h-16 w-16 rounded-full blur-3xl ${tier.glow}`}
-                            />
-                            <div
-                              className={`pointer-events-none absolute bottom-0 right-0 h-16 w-16 rounded-full blur-3xl ${tier.glow}`}
-                            />
+                          <div className={`relative overflow-hidden rounded-[22px] border p-3 transition active:scale-[0.98] ${cardClass}`}>
+                            <div className="pointer-events-none absolute -left-8 top-0 h-20 w-20 rounded-full bg-yellow-400/10 blur-3xl" />
+                            <div className="pointer-events-none absolute bottom-0 right-0 h-20 w-20 rounded-full bg-fuchsia-400/12 blur-3xl" />
 
-                            <div className="relative z-10 flex h-[170px] flex-col">
-                              <div className="flex items-center justify-between gap-2">
-                                <span
-                                  className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.2em] ${tier.badge}`}
-                                >
-                                  {tierLabel}
+                            <div className="relative z-10">
+                              <div className="mb-3 flex items-center justify-between gap-2">
+                                <span className="rounded-full border border-white/10 bg-white/8 px-2 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-white/65">
+                                  Partido #{match.display_order}
                                 </span>
 
-                                <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/35">
-                                  HOLY
+                                <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[9px] font-black uppercase text-white/80">
+                                  {label}
                                 </span>
                               </div>
 
-                              <div className="flex flex-1 flex-col items-center justify-center text-center">
-                                <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-[16px] border border-white/10 bg-black/20 shadow-[0_0_24px_rgba(255,255,255,0.05)]">
-                                  <RewardIcon className={`h-6 w-6 ${tier.accent}`} />
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <WorldCupFlag team={match.home_team} flag={match.home_flag} />
+
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-black text-white">
+                                        {match.home_team}
+                                      </p>
+                                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-white/35">
+                                        Local
+                                      </p>
+                                    </div>
+                                  </div>
                                 </div>
 
-                                <h4 className="max-w-[92%] text-base font-black leading-tight text-white">
-                                  {reward.name}
-                                </h4>
+                                <div className="shrink-0 rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-black text-white/45">
+                                  VS
+                                </div>
 
-                                <p className="mt-1 line-clamp-2 text-[11px] text-white/50">
-                                  {reward.description || "Canjeable en HOLY."}
-                                </p>
+                                <div className="min-w-0">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <div className="min-w-0 text-right">
+                                      <p className="truncate text-sm font-black text-white">
+                                        {match.away_team}
+                                      </p>
+                                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-white/35">
+                                        Visitante
+                                      </p>
+                                    </div>
+
+                                    <WorldCupFlag team={match.away_team} flag={match.away_flag} />
+                                  </div>
+                                </div>
                               </div>
 
-                              <div className="mt-auto flex items-end justify-between gap-3">
-                                <div>
-                                  <p className="text-[9px] uppercase tracking-[0.18em] text-white/35">
-                                    Precio
-                                  </p>
-                                  <p className="text-xl font-black text-white">
-                                    {reward.points_cost.toLocaleString("es-AR")}
-                                  </p>
-                                </div>
+                              <div className="mt-3 rounded-[18px] border border-white/10 bg-black/18 px-3 py-2">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/35">
+                                      Fecha
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] font-bold capitalize text-white/70">
+                                      {formatWorldCupDate(match.kickoff_at)} hs
+                                    </p>
+                                  </div>
 
-                                <Link
-                                  href="/dashboard/puntos"
-                                  className={`rounded-2xl border px-3 py-2 text-[11px] font-bold transition ${tier.button}`}
-                                >
-                                  Canjear
-                                </Link>
+                                  {prediction ? (
+                                    <div className="text-right">
+                                      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-white/35">
+                                        Tu voto
+                                      </p>
+                                      <p className="mt-0.5 text-sm font-black text-white">
+                                        {prediction.predicted_home_score} - {prediction.predicted_away_score}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className="text-right">
+                                      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-200/65">
+                                        Premios
+                                      </p>
+                                      <p className="mt-0.5 text-[11px] font-black text-white">
+                                        +500 / +10.000
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="mt-3 rounded-[18px] border border-yellow-300/20 bg-yellow-300/10 px-3 py-2 text-center text-xs font-black text-yellow-100">
+                                TOCAR PARA VOTAR
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       );
                     })}
                   </div>
 
                   <div className="mt-2 flex items-center justify-center gap-2">
-                    {rewards.map((_, index) => (
+                    {worldCupMatches.map((_, index) => (
                       <button
                         key={index}
-                        onClick={() => {
-                          markUserInteraction();
-                          scrollToCard(index);
-                        }}
+                        onClick={() => scrollToWorldCupCard(index)}
                         className={`h-2.5 rounded-full transition ${
-                          index === activeRewardIndex ? "w-6 bg-white" : "w-2.5 bg-white/20"
+                          index === activeWorldCupIndex ? "w-6 bg-white" : "w-2.5 bg-white/20"
                         }`}
-                        aria-label={`Ir al reward ${index + 1}`}
+                        aria-label={`Ir al partido ${index + 1}`}
                       />
                     ))}
                   </div>
 
-               <Link href="/dashboard/puntos/home" className="mt-3 block">
-                    <div className="rounded-[20px] border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-2 text-center text-sm font-bold text-fuchsia-200 transition active:scale-[0.99]">
-                      Ver todos los beneficios
+                  <Link href="/mundial" className="mt-3 block">
+                    <div className="rounded-[20px] border border-yellow-300/20 bg-yellow-400/10 px-4 py-2 text-center text-sm font-bold text-yellow-100 transition active:scale-[0.99]">
+                      Ver votación completa
                     </div>
                   </Link>
                 </>
