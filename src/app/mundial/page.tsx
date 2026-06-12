@@ -440,11 +440,14 @@ export default function MundialPage() {
 
     setSubmitting(true)
 
-    const { data, error } = await supabase.rpc('submit_worldcup_prediction', {
-      p_match_id: selectedMatch.id,
-      p_home_score: parsedHome,
-      p_away_score: parsedAway,
-    })
+   const { data, error } = await supabase.rpc(
+  'submit_worldcup_prediction' as any,
+  {
+    p_match_id: selectedMatch.id,
+    p_home_score: parsedHome,
+    p_away_score: parsedAway,
+  } as any
+)
 
     if (error) {
       console.error('Error submit prediction:', error)

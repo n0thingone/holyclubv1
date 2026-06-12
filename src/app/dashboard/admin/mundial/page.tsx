@@ -202,10 +202,14 @@ export default function AdminMundialPage() {
     setMessage("");
     setErrorMessage("");
 
-    const { data, error } = await supabase.rpc("set_worldcup_match_status", {
-      p_match_id: matchId,
-      p_status: status,
-    });
+const { data, error } = await supabase.rpc(
+  'finish_worldcup_match' as any,
+  {
+    p_match_id: match.id,
+    p_home_score: home,
+    p_away_score: away,
+  } as any
+)
 
     if (error) {
       console.error("Error cambiando estado:", error);
