@@ -1891,18 +1891,46 @@ showSecurityDisplay(result);
   if (securityDisplay) {
     const isGold = securityDisplay.type === "gold_entry";
     const isTicket = securityDisplay.type === "ticket_entry";
-    const isValid = securityDisplay.type === "valid_entry" || isTicket;
+    const isFreeList = securityDisplay.type === "valid_entry";
+    const isValid = isFreeList || isTicket;
     const isUsed = securityDisplay.type === "used_qr";
     const isExpired = securityDisplay.type === "expired_qr";
     const isInvalid = securityDisplay.type === "invalid_qr" || securityDisplay.type === "unpaid_ticket";
 
+    /*
+      ✅ PANTALLA VERDE ORIGINAL — DEJADA COMENTADA PARA VOLVER FÁCIL
+      Antes, cuando securityDisplay.color === "green", el pase válido usaba este fondo:
+
+      const screenClass =
+        securityDisplay.color === "green"
+          ? "from-emerald-950 via-emerald-700 to-emerald-500"
+          : securityDisplay.color === "gold"
+            ? "from-yellow-950 via-amber-700 to-yellow-400"
+            : securityDisplay.color === "yellow"
+              ? "from-yellow-950 via-yellow-700 to-orange-500"
+              : "from-red-950 via-red-700 to-red-500";
+
+      Y renderizaba una pantalla full con:
+      - OK
+      - PUEDE INGRESAR
+      - nombre
+      - LISTA FREE
+      - RRPP
+      - +créditos
+
+      Para volver al verde clásico:
+      1) borrá / comentá el bloque nuevo de "isFreeList" de abajo
+      2) dejá que valid_entry caiga al render legacy de más abajo
+      3) restaurá el color del ícono ShieldCheck a text-emerald-100 si querés.
+    */
+
     const screenClass =
-      securityDisplay.color === "green"
-        ? "from-emerald-950 via-emerald-700 to-emerald-500"
-        : securityDisplay.color === "gold"
-          ? "from-yellow-950 via-amber-700 to-yellow-400"
-          : securityDisplay.color === "yellow"
-            ? "from-yellow-950 via-yellow-700 to-orange-500"
+      securityDisplay.color === "gold"
+        ? "from-yellow-950 via-amber-700 to-yellow-400"
+        : securityDisplay.color === "yellow"
+          ? "from-yellow-950 via-yellow-700 to-orange-500"
+          : securityDisplay.color === "green"
+            ? "from-emerald-950 via-emerald-700 to-emerald-500"
             : "from-red-950 via-red-700 to-red-500";
 
     const title = isGold
@@ -1928,6 +1956,184 @@ showSecurityDisplay(result);
               : securityDisplay.type === "unpaid_ticket"
                 ? "ENTRADA NO PAGADA"
                 : "QR INVÁLIDO";
+
+    if (isFreeList) {
+      return (
+        <div
+          className="fixed inset-0 z-[99999] flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#061326] px-4 py-5 text-center text-white sm:px-6"
+          onClick={() => {
+            clearSecurityDisplayTimeout();
+            setSecurityDisplay(null);
+
+            setTimeout(() => {
+              focusZebraInput();
+            }, 120);
+          }}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.36),transparent_28%),radial-gradient(circle_at_82%_14%,rgba(255,255,255,0.20),transparent_24%),radial-gradient(circle_at_50%_100%,rgba(37,99,235,0.32),transparent_46%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.08)_0_1px,transparent_1px_70px)] opacity-30" />
+          <div className="pointer-events-none absolute -left-20 top-16 h-72 w-72 rounded-full border border-sky-300/20 shadow-[0_0_80px_rgba(56,189,248,0.38)]" />
+          <div className="pointer-events-none absolute -right-24 top-10 h-80 w-80 rounded-full border border-white/15 shadow-[0_0_90px_rgba(147,197,253,0.35)]" />
+
+          <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-90">
+            {Array.from({ length: 42 }).map((_, i) => (
+              <span
+                key={i}
+                className={`absolute rounded-[2px] ${
+                  i % 3 === 0
+                    ? "h-2 w-6 rotate-12 bg-sky-300/75"
+                    : i % 3 === 1
+                      ? "h-2 w-5 -rotate-12 bg-white/80"
+                      : "h-2 w-2 rotate-45 bg-blue-500/75"
+                }`}
+                style={{
+                  left: `${(i * 23) % 100}%`,
+                  top: `${(i * 37) % 100}%`,
+                  transform: `rotate(${(i * 29) % 160}deg)`,
+                }}
+              />
+            ))}
+          </div>
+
+          <div className="pointer-events-none absolute left-5 top-14 h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.9)_0_2px,transparent_3px),radial-gradient(circle,rgba(56,189,248,0.7)_0_2px,transparent_3px)] bg-[length:22px_22px] opacity-40 blur-[0.2px]" />
+          <div className="pointer-events-none absolute right-4 top-20 h-36 w-36 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.85)_0_2px,transparent_3px),radial-gradient(circle,rgba(37,99,235,0.7)_0_2px,transparent_3px)] bg-[length:20px_20px] opacity-45 blur-[0.2px]" />
+
+          <div className="relative z-10 flex w-full max-w-[620px] flex-col items-center">
+            <div className="mb-4 flex items-center justify-center gap-3 rounded-full border border-sky-200/25 bg-white/10 px-5 py-2.5 shadow-[0_0_35px_rgba(56,189,248,0.18)] backdrop-blur-md">
+              <ShieldCheck className="h-7 w-7 text-sky-100" />
+              <span className="text-base font-black uppercase tracking-[0.32em] text-white sm:text-xl">
+                HOLY CONTROL
+              </span>
+            </div>
+
+            <div className="relative w-full overflow-hidden rounded-[34px] border border-white/60 bg-white text-slate-950 shadow-[0_28px_90px_rgba(0,0,0,0.46)]">
+              <div className="absolute inset-x-0 top-0 h-52 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.95),rgba(224,242,254,0.94)_36%,rgba(96,165,250,0.82)_100%)]" />
+              <div className="absolute inset-x-0 top-0 h-52 bg-[linear-gradient(135deg,rgba(14,165,233,0.95)_0_12%,transparent_12%_88%,rgba(14,165,233,0.85)_88%_100%)] opacity-55" />
+              <div className="absolute left-1/2 top-20 h-40 w-[120%] -translate-x-1/2 rounded-[100%] border border-white/60 bg-white/28" />
+
+              <div className="relative px-5 pb-5 pt-5 sm:px-7 sm:pb-7">
+                <div className="mx-auto mb-5 flex w-fit items-center rounded-b-2xl rounded-t-[18px] border border-white/70 bg-sky-500 px-8 py-2 text-sm font-black uppercase tracking-[0.24em] text-white shadow-[0_8px_25px_rgba(14,165,233,0.35)]">
+                  PASE
+                </div>
+
+                <div className="text-[13vw] font-black uppercase leading-[0.82] tracking-[-0.08em] text-slate-950 drop-shadow-[0_4px_0_rgba(255,255,255,0.85)] sm:text-7xl">
+                  LISTA FREE
+                </div>
+                <div className="mt-2 text-[7vw] font-black uppercase leading-none tracking-[-0.04em] text-sky-500 sm:text-4xl">
+                  CANDY PERREO
+                </div>
+                <div className="mt-1 text-sm font-black uppercase tracking-[0.26em] text-sky-600 sm:text-lg">
+                  EDICIÓN MUNDIAL
+                </div>
+
+                <div className="mx-auto mt-5 flex h-24 w-24 items-center justify-center rounded-[28px] border border-sky-200 bg-white/80 shadow-[0_12px_35px_rgba(14,165,233,0.22)] sm:h-28 sm:w-28">
+                  <div className="relative h-16 w-16 overflow-hidden rounded-2xl border-2 border-sky-500 shadow-inner sm:h-20 sm:w-20">
+                    <div className="h-1/3 bg-sky-400" />
+                    <div className="flex h-1/3 items-center justify-center bg-white text-xl sm:text-2xl">☀️</div>
+                    <div className="h-1/3 bg-sky-400" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative rounded-t-[34px] bg-white px-5 pb-5 pt-5 text-left shadow-[0_-18px_35px_rgba(255,255,255,0.7)] sm:px-7 sm:pb-7">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4 border-b border-dashed border-slate-300 pb-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-500">
+                      <LogIn className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        Nombre y apellido
+                      </div>
+                      <div className="text-2xl font-black uppercase leading-tight tracking-[-0.03em] text-slate-950 sm:text-3xl">
+                        {securityDisplay.name}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 border-b border-dashed border-slate-300 pb-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-[0_0_24px_rgba(37,99,235,0.28)]">
+                      <CheckCircle className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        Estado
+                      </div>
+                      <div className="text-2xl font-black uppercase leading-tight text-blue-700 sm:text-3xl">
+                        Acceso validado
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 border-b border-dashed border-slate-300 pb-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-500">
+                      <DoorOpen className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        Tipo de ingreso
+                      </div>
+                      <div className="text-xl font-black uppercase leading-tight text-slate-950 sm:text-2xl">
+                        Lista free
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 border-b border-dashed border-slate-300 pb-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-500">
+                      <Crown className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        Evento
+                      </div>
+                      <div className="text-lg font-black uppercase leading-tight text-slate-950 sm:text-xl">
+                        {event?.name || "CANDY PERREO - EDICIÓN MUNDIAL"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {securityDisplay.rrpp && (
+                      <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                          RRPP
+                        </div>
+                        <div className="mt-1 text-base font-black uppercase leading-tight text-slate-900">
+                          {securityDisplay.rrpp}
+                        </div>
+                      </div>
+                    )}
+
+                    {securityDisplay.points && securityDisplay.points > 0 && (
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                          Créditos
+                        </div>
+                        <div className="mt-1 text-base font-black uppercase leading-tight text-blue-700">
+                          +{securityDisplay.points} al cliente
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-[26px] bg-gradient-to-r from-sky-500 via-white to-sky-500 p-[2px]">
+                  <div className="rounded-[24px] bg-slate-950 px-5 py-4 text-center text-white">
+                    <div className="text-3xl font-black uppercase tracking-[-0.04em] sm:text-5xl">
+                      HABILITAR ENTRADA
+                    </div>
+                    <div className="mt-2 text-sm font-bold uppercase tracking-[0.18em] text-sky-200">
+                      {securityDisplay.time} · Tocá para volver al scanner
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div
