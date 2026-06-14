@@ -449,7 +449,7 @@ export default function ScanPage() {
       setTimeout(() => {
         focusZebraInput();
       }, 120);
-    }, result.success ? 2800       : 3500);
+    }, result.success ? 3200 : result.result === "used_qr" ? 6500 : 5200);
   };
 
 
@@ -2205,7 +2205,12 @@ showSecurityDisplay(result);
 
               <img
                 src="/images/messi-bobo.png"
-                alt="Bobo sticker"
+                alt=""
+                onError={(e) => {
+                  // Si la imagen no está subida a /public/images/messi-bobo.png,
+                  // ocultamos el broken image para que no aparezca el texto "Bobo sticker".
+                  e.currentTarget.style.display = "none";
+                }}
                 className="mt-5 h-44 w-auto drop-shadow-[0_18px_45px_rgba(0,0,0,0.55)] md:h-64"
               />
             </div>
