@@ -1938,7 +1938,7 @@ showSecurityDisplay(result);
       : isValid
         ? "PUEDE INGRESAR"
         : isUsed
-          ? "YA INGRESÓ"
+          ? "YA PASÓ"
           : isExpired
             ? "FUERA DE HORARIO"
             : "NO DEJAR PASAR";
@@ -1950,7 +1950,7 @@ showSecurityDisplay(result);
         : isValid
           ? "LISTA FREE"
           : isUsed
-            ? "QR YA UTILIZADO"
+            ? "ANDÁ PA' ALLÁ, BOBO"
             : isExpired
               ? "QR VENCIDO"
               : securityDisplay.type === "unpaid_ticket"
@@ -2197,8 +2197,22 @@ showSecurityDisplay(result);
             )}
           </div>
 
+          {isUsed && (
+            <div className="mt-7 flex flex-col items-center">
+              <div className="rounded-full border border-white/25 bg-black/30 px-6 py-3 text-2xl font-black uppercase tracking-[0.14em] text-white shadow-[0_0_35px_rgba(0,0,0,0.35)] backdrop-blur md:text-4xl">
+                ANDÁ PA' ALLÁ, BOBO
+              </div>
+
+              <img
+                src="/images/messi-bobo.png"
+                alt="Bobo sticker"
+                className="mt-5 h-44 w-auto drop-shadow-[0_18px_45px_rgba(0,0,0,0.55)] md:h-64"
+              />
+            </div>
+          )}
+
           <div className="mt-10 text-2xl font-black uppercase tracking-[0.25em] opacity-80 md:text-4xl">
-            {isValid || isGold ? "HABILITAR ENTRADA" : "RECHAZAR ENTRADA"}
+            {isValid || isGold ? "HABILITAR ENTRADA" : isUsed ? "QR YA UTILIZADO" : "RECHAZAR ENTRADA"}
           </div>
 
           <div className="mt-7 text-lg font-bold uppercase tracking-[0.25em] opacity-70 md:text-2xl">
