@@ -449,7 +449,7 @@ export default function ScanPage() {
       setTimeout(() => {
         focusZebraInput();
       }, 120);
-    }, result.success ? 1500    : 2600);
+    }, result.success ? 2800       : 3500);
   };
 
 
